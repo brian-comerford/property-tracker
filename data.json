@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-04-24T04:07:39.096Z",
+  "_savedAt": "2026-04-24T04:11:54.182Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -9,6 +9,15 @@
     "purchaseYear": 2026
   },
   "entries": [
+    {
+      "id": "1777003905126",
+      "date": "2026-04-23",
+      "category": "Rental Income",
+      "amount": 787.5,
+      "desc": "Blanton Back Pay for March",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1777003648395",
       "date": "2026-04-23",
