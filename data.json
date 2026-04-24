@@ -1,12 +1,14 @@
 {
-  "_savedAt": "2026-04-24T04:25:40.119Z",
+  "_savedAt": "2026-04-24T05:13:32.298Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
     "downPayment": 37500,
     "closingCosts": 5943,
     "otherInitial": 0.6,
-    "purchaseYear": 2026
+    "purchaseYear": 2026,
+    "interestRate": 6.124,
+    "loanStart": "2026-05"
   },
   "entries": [
     {
