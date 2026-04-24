@@ -310,6 +310,19 @@
     padding: 2px 8px; border-radius: 12px; font-size: .7rem; font-weight: 600;
     background: var(--blue2); color: var(--blue); margin-left: 6px;
   }
+
+  /* ── TOGGLE SWITCH ── */
+  .toggle-track {
+    position: absolute; inset: 0;
+    border-radius: 11px; cursor: pointer;
+    transition: background .2s;
+  }
+  .toggle-thumb {
+    position: absolute; left: 3px; top: 3px;
+    width: 16px; height: 16px;
+    background: #fff; border-radius: 50%;
+    transition: transform .2s;
+  }
 </style>
 </head>
 <body>
@@ -493,6 +506,30 @@
       </div>
       <p class="text-muted" style="margin-top:4px;font-size:.78rem;line-height:1.5">
         Loan balance at sale is estimated automatically using your interest rate and loan start date from Settings (30-yr fixed amortization).
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Personal Rent Savings</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0" onclick="toggleRentSavings()">
+        <span style="font-size:.8rem;color:var(--ink3)" id="rent-savings-label">Included</span>
+        <div style="position:relative;width:40px;height:22px;flex-shrink:0">
+          <div class="toggle-track" id="rent-toggle-track" style="background:var(--accent)">
+            <div class="toggle-thumb" id="rent-toggle-thumb" style="transform:translateX(18px)"></div>
+          </div>
+        </div>
+      </label>
+    </div>
+    <div class="card-body">
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">What you would have paid in rent/mo ($)</label>
+        <input type="number" inputmode="decimal" class="form-input" id="be-rent-savings"
+          placeholder="1800" step="50" oninput="renderBreakeven()">
+      </div>
+      <p class="text-muted" style="font-size:.75rem;line-height:1.5;margin-top:6px">
+        By owning instead of renting, you avoid this cost each month. Toggle to see how it affects your break-even price.
       </p>
     </div>
   </div>
@@ -771,7 +808,7 @@ let settings, entries, beSettings, taxRate, ghConfig;
 function loadState() {
   settings   = DB.load('pt_settings', { address:'', purchasePrice:350000, downPayment:70000, closingCosts:8000, otherInitial:5000, purchaseYear:new Date().getFullYear(), interestRate:6.5, loanStart:'' });
   entries    = DB.load('pt_entries', []);
-  beSettings = DB.load('pt_be', { years:5, appreciation:3, commission:6, closing:1 });
+  beSettings = DB.load('pt_be', { years:5, appreciation:3, commission:6, closing:1, rentSavings:0, includeRentSavings:true });
   taxRate    = DB.load('pt_taxrate', 22);
   ghConfig   = DB.load('pt_gh', { user:'', repo:'', token:'' });
 }
@@ -1198,14 +1235,30 @@ function monthsBetween(startYM, endYM) {
   return Math.max(0, (ey - sy) * 12 + (em - sm));
 }
 
+// ── Rent savings toggle state ─────────────────────────────────────
+let rentSavingsOn = true; // default on; synced from beSettings on load
+
+function toggleRentSavings() {
+  rentSavingsOn = !rentSavingsOn;
+  const track = document.getElementById('rent-toggle-track');
+  const thumb = document.getElementById('rent-toggle-thumb');
+  const label = document.getElementById('rent-savings-label');
+  if (track) track.style.background = rentSavingsOn ? 'var(--accent)' : 'var(--paper3)';
+  if (thumb) thumb.style.transform  = rentSavingsOn ? 'translateX(18px)' : 'translateX(0px)';
+  if (label) label.textContent      = rentSavingsOn ? 'Included' : 'Ignored';
+  renderBreakeven();
+}
+
 // ══════════════════════════════════════════════════════════════════
 function renderBreakeven() {
   const get = (id, def) => parseFloat(document.getElementById(id)?.value) || def;
 
-  const years       = get('be-years', beSettings.years);
-  const appreciation= get('be-appreciation', beSettings.appreciation) / 100;
-  const commission  = get('be-commission', beSettings.commission) / 100;
-  const closingPct  = get('be-closing', beSettings.closing) / 100;
+  const years              = get('be-years', beSettings.years);
+  const appreciation       = get('be-appreciation', beSettings.appreciation) / 100;
+  const commission         = get('be-commission', beSettings.commission) / 100;
+  const closingPct         = get('be-closing', beSettings.closing) / 100;
+  const rentSavingsPerMo   = get('be-rent-savings', beSettings.rentSavings || 0);
+  const includeRentSavings = rentSavingsOn;
 
   // Populate inputs if empty
   const fields = ['years','appreciation','commission','closing'];
@@ -1213,8 +1266,18 @@ function renderBreakeven() {
     const el = document.getElementById('be-' + k);
     if (el && !el.value) el.value = [years, appreciation*100, commission*100, closingPct*100][i];
   });
+  const rentEl = document.getElementById('be-rent-savings');
+  if (rentEl && !rentEl.value && beSettings.rentSavings) rentEl.value = beSettings.rentSavings;
 
-  beSettings = { years, appreciation: appreciation*100, commission: commission*100, closing: closingPct*100 };
+  // Keep toggle visual in sync (in case renderBreakeven is called programmatically)
+  const track = document.getElementById('rent-toggle-track');
+  const thumb = document.getElementById('rent-toggle-thumb');
+  const label = document.getElementById('rent-savings-label');
+  if (track) track.style.background = includeRentSavings ? 'var(--accent)' : 'var(--paper3)';
+  if (thumb) thumb.style.transform  = includeRentSavings ? 'translateX(18px)' : 'translateX(0px)';
+  if (label) label.textContent      = includeRentSavings ? 'Included' : 'Ignored';
+
+  beSettings = { years, appreciation: appreciation*100, commission: commission*100, closing: closingPct*100, rentSavings: rentSavingsPerMo, includeRentSavings };
   DB.save('pt_be', beSettings);
 
   // ── Amortization-based loan balance ──────────────────────────────
@@ -1222,18 +1285,14 @@ function renderBreakeven() {
   const interestRate   = settings.interestRate || 6.5;
   const loanStart      = settings.loanStart || '';
 
-  // Months paid so far (from loan start to today)
-  const todayYM = now().slice(0, 7); // "YYYY-MM"
-  const monthsPaidNow = monthsBetween(loanStart, todayYM);
-
-  // Months paid at time of sale (loan start → sale date)
-  // Sale date = loan start + (months already paid) + (years * 12 more)
-  const monthsPaidAtSale = monthsPaidNow + Math.round(years * 12);
+  const todayYM           = now().slice(0, 7);
+  const monthsPaidNow     = monthsBetween(loanStart, todayYM);
+  const monthsPaidAtSale  = monthsPaidNow + Math.round(years * 12);
 
   const currentBalance  = calcRemainingBalance(loanPrincipal, interestRate, monthsPaidNow);
   const balanceAtSale   = calcRemainingBalance(loanPrincipal, interestRate, monthsPaidAtSale);
 
-  // Monthly payment for display
+  // Monthly P&I payment
   const r = (interestRate / 100) / 12;
   const n = 360;
   const monthlyPayment = r > 0
@@ -1242,18 +1301,28 @@ function renderBreakeven() {
 
   const missingLoanInfo = !loanStart || !settings.purchasePrice;
 
-  // ── Cost basis ────────────────────────────────────────────────────
-  const pp              = settings.purchasePrice || 350000;
-  const initialInvestment = (settings.downPayment||70000) + (settings.closingCosts||8000) + (settings.otherInitial||5000);
-  const totalBillsPaid  = sumByFilter(e => !isIncome(e.category));
-  const totalRentRcvd   = sumByFilter(e => isIncome(e.category));
-  const netCostBasis    = initialInvestment + totalBillsPaid - totalRentRcvd;
+  // ── Rent savings ─────────────────────────────────────────────────
+  // Total months owned so far + future years to sale
+  const totalMonthsAtSale = monthsPaidNow + Math.round(years * 12);
+  const totalRentSaved    = includeRentSavings ? rentSavingsPerMo * totalMonthsAtSale : 0;
 
-  const breakEvenSale   = (netCostBasis + balanceAtSale) / (1 - commission - closingPct);
-  const estMarketValue  = pp * Math.pow(1 + appreciation, years);
-  const estGain         = estMarketValue - breakEvenSale;
-  const roi             = initialInvestment > 0 ? estGain / initialInvestment : 0;
-  const gainColor       = estGain >= 0 ? 'var(--accent)' : 'var(--red)';
+  // ── Cost basis ────────────────────────────────────────────────────
+  const pp                = settings.purchasePrice || 350000;
+  const initialInvestment = (settings.downPayment||70000) + (settings.closingCosts||8000) + (settings.otherInitial||5000);
+  const totalBillsPaid    = sumByFilter(e => !isIncome(e.category));
+  const totalRentRcvd     = sumByFilter(e => isIncome(e.category));
+  // Net cost basis: what you've spent minus rental income and (optionally) rent savings
+  const netCostBasis      = initialInvestment + totalBillsPaid - totalRentRcvd - totalRentSaved;
+
+  const breakEvenSale     = (netCostBasis + balanceAtSale) / (1 - commission - closingPct);
+  const estMarketValue    = pp * Math.pow(1 + appreciation, years);
+  const estGain           = estMarketValue - breakEvenSale;
+  const roi               = initialInvestment > 0 ? estGain / initialInvestment : 0;
+  const gainColor         = estGain >= 0 ? 'var(--accent)' : 'var(--red)';
+
+  // Also compute break-even without savings for comparison when toggle is on
+  const netCostBasisNoSavings   = initialInvestment + totalBillsPaid - totalRentRcvd;
+  const breakEvenWithoutSavings = (netCostBasisNoSavings + balanceAtSale) / (1 - commission - closingPct);
 
   const loanWarning = missingLoanInfo
     ? `<div class="card" style="margin-bottom:12px">
@@ -1264,6 +1333,34 @@ function renderBreakeven() {
           </p>
         </div>
       </div>` : '';
+
+  const rentSavingsCard = rentSavingsPerMo > 0 ? `
+    <div class="section-label">Personal Rent Savings</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="breakdown-row">
+          <span class="breakdown-label">Monthly Rent Avoided</span>
+          <span class="breakdown-val" style="color:var(--accent)">${fmt(rentSavingsPerMo)}/mo</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label">Months Owned at Sale</span>
+          <span class="breakdown-val">${totalMonthsAtSale} mo</span>
+        </div>
+        <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
+          <span class="breakdown-label fw6">Total Rent Saved</span>
+          <span class="breakdown-val serif" style="font-size:1.1rem;color:var(--accent)">${includeRentSavings ? fmt(totalRentSaved) : '—  (ignored)'}</span>
+        </div>
+        ${includeRentSavings ? `
+        <div class="breakdown-row" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--paper3)">
+          <span class="breakdown-label" style="font-size:.78rem;color:var(--ink3)">Break-even without savings</span>
+          <span class="breakdown-val" style="font-size:.85rem;color:var(--ink3)">${fmt(breakEvenWithoutSavings)}</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label" style="font-size:.78rem;color:var(--accent)">Savings impact on break-even</span>
+          <span class="breakdown-val" style="font-size:.85rem;color:var(--accent)">−${fmt(breakEvenWithoutSavings - breakEvenSale)}</span>
+        </div>` : ''}
+      </div>
+    </div>` : '';
 
   document.getElementById('breakeven-results').innerHTML = `
     ${loanWarning}
@@ -1289,12 +1386,16 @@ function renderBreakeven() {
         <div class="breakdown-row"><span class="breakdown-label">Initial Investment</span><span class="breakdown-val">${fmt(initialInvestment)}</span></div>
         <div class="breakdown-row"><span class="breakdown-label">Total Bills Paid (logged)</span><span class="breakdown-val">${fmt(totalBillsPaid)}</span></div>
         <div class="breakdown-row"><span class="breakdown-label">Less: Rental Income (logged)</span><span class="breakdown-val" style="color:var(--accent)">−${fmt(totalRentRcvd)}</span></div>
+        ${includeRentSavings && rentSavingsPerMo > 0 ? `
+        <div class="breakdown-row"><span class="breakdown-label">Less: Personal Rent Saved</span><span class="breakdown-val" style="color:var(--accent)">−${fmt(totalRentSaved)}</span></div>` : ''}
         <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
           <span class="breakdown-label fw6">Net Cost Basis</span>
           <span class="breakdown-val serif" style="font-size:1.1rem">${fmt(netCostBasis)}</span>
         </div>
       </div>
     </div>
+
+    ${rentSavingsCard}
 
     <div class="section-label">Break-Even Price</div>
     <div class="card">
@@ -1770,6 +1871,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await DB.init();
   loadState();
+  // Restore rent savings toggle state from saved settings
+  rentSavingsOn = beSettings.includeRentSavings !== false;
 
   document.getElementById('bill-date').value = now();
   document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
