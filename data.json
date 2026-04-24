@@ -1,14 +1,23 @@
 {
-  "_savedAt": "2026-04-24T03:10:00.165Z",
+  "_savedAt": "2026-04-24T03:33:24.790Z",
   "settings": {
-    "address": "",
-    "purchasePrice": 350000,
-    "downPayment": 70000,
-    "closingCosts": 8000,
+    "address": "305 Bowie St",
+    "purchasePrice": 132500,
+    "downPayment": 37500,
+    "closingCosts": 5943.6,
     "otherInitial": 5000,
     "purchaseYear": 2026
   },
   "entries": [
+    {
+      "id": "1777000548584",
+      "date": "2026-04-23",
+      "category": "Electricity",
+      "amount": 120.72,
+      "desc": "April electricity",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1777000179640",
       "date": "2026-04-23",
