@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-04-24T03:08:54.220Z",
+  "_savedAt": "2026-04-24T03:09:52.796Z",
   "settings": {
     "address": "",
     "purchasePrice": 350000,
@@ -8,7 +8,26 @@
     "otherInitial": 5000,
     "purchaseYear": 2026
   },
-  "entries": [],
+  "entries": [
+    {
+      "id": "1777000179640",
+      "date": "2026-04-23",
+      "category": "Rental Income",
+      "amount": 650,
+      "desc": "April rent - Timmy",
+      "notes": "",
+      "recur": "monthly"
+    },
+    {
+      "id": "1777000162374",
+      "date": "2026-04-23",
+      "category": "Rental Income",
+      "amount": 650,
+      "desc": "April rent - Cade",
+      "notes": "",
+      "recur": "monthly"
+    }
+  ],
   "beSettings": {
     "years": 5,
     "appreciation": 3,
