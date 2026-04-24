@@ -321,6 +321,7 @@
     <div class="topbar-sub" id="topbar-address">My Rental Property</div>
   </div>
   <div class="topbar-right">
+    <span id="sync-dot" style="display:none;width:8px;height:8px;border-radius:50%;background:#7ecfa4;margin-right:2px;flex-shrink:0" title="Synced to GitHub"></span>
     <button class="icon-btn" onclick="downloadApp()" title="Download App">⬇️</button>
     <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
     <button class="icon-btn" onclick="exportXLSX()" title="Export to Google Sheets (.xlsx)">📊</button>
@@ -701,8 +702,8 @@ const DB = (() => {
   return {
     // Call once at startup — loads everything from IDB into memory
     async init() {
+      const keys = ['pt_settings','pt_entries','pt_be','pt_taxrate','pt_gh','pt_last_sync'];
       try {
-        const keys = ['pt_settings','pt_entries','pt_be','pt_taxrate'];
         await Promise.all(keys.map(async k => {
           const v = await idbGet(k);
           if (v !== undefined) cache[k] = v;
@@ -718,7 +719,7 @@ const DB = (() => {
         }
       } catch {
         // IDB failed — fall back to localStorage silently
-        ['pt_settings','pt_entries','pt_be','pt_taxrate'].forEach(k => {
+        keys.forEach(k => {
           try { const v = localStorage.getItem(k); if (v) cache[k] = JSON.parse(v); } catch {}
         });
       }
@@ -1498,6 +1499,9 @@ async function githubSync(silent = false) {
     if (statusEl) statusEl.textContent = `✅ Synced at ${ts}`;
     if (!silent) showToast('✅ Saved to GitHub!');
     DB.save('pt_last_sync', Date.now());
+    // Show green sync dot in topbar
+    const dot = document.getElementById('sync-dot');
+    if (dot) { dot.style.display = 'inline-block'; dot.title = `Synced at ${ts}`; }
     return true;
 
   } catch (err) {
@@ -1512,8 +1516,7 @@ async function githubLoad() {
   const { user, repo, token } = ghConfig;
   if (!user || !repo || !token) return;
 
-  const FILE_PATH = 'data.json';
-  const API = `https://api.github.com/repos/${user}/${repo}/contents/${FILE_PATH}`;
+  const API = `https://api.github.com/repos/${user}/${repo}/contents/data.json`;
   const headers = {
     'Authorization': `token ${token}`,
     'Accept': 'application/vnd.github.v3+json'
@@ -1521,29 +1524,61 @@ async function githubLoad() {
 
   try {
     const res = await fetch(API, { headers });
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.status === 404) return; // no data file yet — that's fine
+      throw new Error(`HTTP ${res.status}`);
+    }
     const file = await res.json();
-    // Decode base64 content
     const json = JSON.parse(decodeURIComponent(escape(atob(file.content.replace(/\n/g,'')))));
 
-    // Merge: GitHub wins if its data is newer than local
-    const localSync = DB.load('pt_last_sync', 0);
-    const remoteTs  = json._savedAt ? new Date(json._savedAt).getTime() : 0;
+    // Always load all fields from GitHub — it is the source of truth across devices
+    // (ghConfig is intentionally NOT overwritten — it lives only on each device)
+    if (json.settings)              { settings   = json.settings;   DB.save('pt_settings', settings); }
+    if (Array.isArray(json.entries)){ entries    = json.entries;     DB.save('pt_entries', entries); }
+    if (json.beSettings)            { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
+    if (json.taxRate !== undefined)  { taxRate   = json.taxRate;     DB.save('pt_taxrate', taxRate); }
 
-    if (remoteTs > localSync) {
-      if (json.settings)   { settings   = json.settings;   DB.save('pt_settings', settings); }
-      if (json.entries)    { entries    = json.entries;     DB.save('pt_entries', entries); }
-      if (json.beSettings) { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
-      if (json.taxRate !== undefined) { taxRate = json.taxRate; DB.save('pt_taxrate', taxRate); }
-      DB.save('pt_last_sync', remoteTs);
-      showToast('☁️ Data loaded from GitHub');
-      renderDashboard();
-    }
+    DB.save('pt_last_sync', Date.now());
+    document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
+    showToast('☁️ Data loaded from GitHub');
+    renderDashboard();
   } catch (err) {
-    console.warn('GitHub load skipped:', err.message);
+    console.warn('GitHub load error:', err.message);
+    showToast('⚠️ Could not load from GitHub: ' + err.message);
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('stat-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--ink3)">Loading…</div>';
+
+  await DB.init();
+  loadState();
+
+  document.getElementById('bill-date').value = now();
+  document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
+  renderDashboard();
+
+  // Always pull from GitHub on load if configured — this is what syncs across devices
+  if (ghConfig.user && ghConfig.repo && ghConfig.token) {
+    githubLoad();
+  }
+});
+
+// Auto-save to GitHub whenever the app is hidden (tab switch, home button, close)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && ghConfig.user && ghConfig.repo && ghConfig.token) {
+    githubSync(true);
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (ghConfig.user && ghConfig.repo && ghConfig.token) {
+    githubSync(true);
+  }
+});
 // ══════════════════════════════════════════════════════════════════
 // EXPORT
 // ══════════════════════════════════════════════════════════════════
