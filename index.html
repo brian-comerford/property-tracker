@@ -560,24 +560,27 @@
       <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
       <div class="divider" style="margin-top:20px"></div>
       <div class="section-label">GitHub Data Sync</div>
-      <p class="text-muted" style="margin-bottom:10px;line-height:1.5;font-size:.8rem">Your data will be saved as <code>data.json</code> in your repo at the end of every session and can be synced manually anytime.</p>
+      <p class="text-muted" style="margin-bottom:10px;line-height:1.5;font-size:.8rem">Data is saved as <code>data.json</code> in your repo. Use <b>Test Connection</b> after entering credentials to verify everything works.</p>
       <div class="form-group">
         <label class="form-label">GitHub Username</label>
-        <input type="text" class="form-input" id="set-gh-user" placeholder="yourusername" autocomplete="off" autocorrect="off" autocapitalize="off">
+        <input type="text" class="form-input" id="set-gh-user" placeholder="yourusername" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="form-group">
         <label class="form-label">Repository Name</label>
-        <input type="text" class="form-input" id="set-gh-repo" placeholder="property-tracker" autocomplete="off" autocorrect="off" autocapitalize="off">
+        <input type="text" class="form-input" id="set-gh-repo" placeholder="property-tracker" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="form-group">
         <label class="form-label">Personal Access Token</label>
-        <input type="password" class="form-input" id="set-gh-token" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+        <div style="position:relative">
+          <input type="password" class="form-input" id="set-gh-token" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off" spellcheck="false" style="padding-right:48px">
+          <button type="button" onclick="toggleTokenVis()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:1rem;cursor:pointer;color:var(--ink3)" id="token-eye">👁</button>
+        </div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" style="flex:1" onclick="saveSettings()">Save All Settings</button>
-        <button class="btn btn-ghost" style="flex:1;margin-top:0" onclick="githubSync()">🔄 Sync Now</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="flex:2;min-width:140px" onclick="saveSettingsAndSync()">💾 Save &amp; Sync Now</button>
+        <button class="btn btn-ghost" style="flex:1;margin-top:0;min-width:100px" onclick="githubTest()">🔌 Test</button>
       </div>
-      <div id="gh-status" style="margin-top:10px;font-size:.8rem;color:var(--ink3);text-align:center"></div>
+      <div id="gh-status" style="margin-top:12px;font-size:.8rem;line-height:1.6;background:var(--paper);border-radius:8px;padding:10px 12px;display:none;word-break:break-all;font-family:monospace;white-space:pre-wrap"></div>
       <div class="divider" style="margin-top:16px"></div>
       <div class="section-label">Danger Zone</div>
       <button class="btn btn-danger mt8" onclick="confirmClearData()">🗑 Clear All Data</button>
@@ -1395,7 +1398,8 @@ function openSettings() {
   document.getElementById('set-gh-user').value        = ghConfig.user || '';
   document.getElementById('set-gh-repo').value        = ghConfig.repo || '';
   document.getElementById('set-gh-token').value       = ghConfig.token || '';
-  document.getElementById('gh-status').textContent    = '';
+  const ghStatus = document.getElementById('gh-status');
+  if (ghStatus) { ghStatus.style.display = 'none'; ghStatus.textContent = ''; }
   document.getElementById('settings-overlay').classList.add('open');
 }
 
@@ -1405,19 +1409,17 @@ function closeSettings(e) {
 }
 
 function saveSettings() {
+  // Property fields only — GitHub credentials are saved via "Save & Sync Now"
   settings.address       = document.getElementById('set-address').value.trim();
   settings.purchasePrice = parseFloat(document.getElementById('set-purchase-price').value) || 350000;
   settings.downPayment   = parseFloat(document.getElementById('set-down').value) || 70000;
   settings.closingCosts  = parseFloat(document.getElementById('set-closing-costs').value) || 8000;
   settings.otherInitial  = parseFloat(document.getElementById('set-other-initial').value) || 5000;
   settings.purchaseYear  = parseInt(document.getElementById('set-purchase-year').value) || new Date().getFullYear();
-  ghConfig.user  = document.getElementById('set-gh-user').value.trim();
-  ghConfig.repo  = document.getElementById('set-gh-repo').value.trim();
-  ghConfig.token = document.getElementById('set-gh-token').value.trim();
   saveAll();
   document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
   document.getElementById('settings-overlay').classList.remove('open');
-  showToast('✅ Settings saved');
+  showToast('✅ Property settings saved');
   renderDashboard();
 }
 
@@ -1436,78 +1438,137 @@ async function confirmClearData() {
 // GITHUB SYNC
 // ══════════════════════════════════════════════════════════════════
 
+function ghLog(msg, isError = false) {
+  const el = document.getElementById('gh-status');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color = isError ? 'var(--red)' : 'var(--ink2)';
+  el.textContent = msg;
+}
+
+function toggleTokenVis() {
+  const inp = document.getElementById('set-gh-token');
+  const eye = document.getElementById('token-eye');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  if (eye) eye.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
 function ghDataPayload() {
-  // Everything we want to persist in the repo
-  return JSON.stringify({
-    _savedAt: new Date().toISOString(),
-    settings,
-    entries,
-    beSettings,
-    taxRate
-  }, null, 2);
+  return JSON.stringify({ _savedAt: new Date().toISOString(), settings, entries, beSettings, taxRate }, null, 2);
+}
+
+function ghHeaders(token) {
+  return {
+    'Authorization': `token ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json'
+  };
+}
+
+// Test connection — verifies credentials and repo access without writing anything
+async function githubTest() {
+  // Read live values from form fields (not saved state) so user can test before saving
+  const user  = document.getElementById('set-gh-user')?.value.trim()  || ghConfig.user;
+  const repo  = document.getElementById('set-gh-repo')?.value.trim()  || ghConfig.repo;
+  const token = document.getElementById('set-gh-token')?.value.trim() || ghConfig.token;
+
+  if (!user || !repo || !token) { ghLog('⚠️ Fill in all three fields first.', true); return; }
+  ghLog('🔄 Testing connection…');
+
+  try {
+    // 1. Verify token identity
+    const meRes = await fetch('https://api.github.com/user', { headers: ghHeaders(token) });
+    if (!meRes.ok) {
+      const e = await meRes.json();
+      ghLog(`❌ Token invalid (${meRes.status}): ${e.message}`, true); return;
+    }
+    const me = await meRes.json();
+    if (me.login.toLowerCase() !== user.toLowerCase()) {
+      ghLog(`❌ Token belongs to "${me.login}" but username is "${user}" — check username.`, true); return;
+    }
+
+    // 2. Verify repo exists and is accessible
+    const repoRes = await fetch(`https://api.github.com/repos/${user}/${repo}`, { headers: ghHeaders(token) });
+    if (!repoRes.ok) {
+      const e = await repoRes.json();
+      ghLog(`❌ Repo not found (${repoRes.status}): ${e.message}\n\nCheck that the repo name is exactly "${repo}" and the token has "repo" scope.`, true); return;
+    }
+    const repoData = await repoRes.json();
+
+    // 3. Check write permission
+    if (!repoData.permissions?.push) {
+      ghLog(`❌ Token does not have write access to "${repo}". Regenerate with "repo" scope.`, true); return;
+    }
+
+    ghLog(`✅ Connection OK!\nLogged in as: ${me.login}\nRepo: ${repoData.full_name}\nPermissions: read ✓  write ✓\n\nClick "Save & Sync Now" to push your data.`);
+  } catch (err) {
+    ghLog(`❌ Network error: ${err.message}\n\nMake sure you have internet access.`, true);
+  }
 }
 
 async function githubSync(silent = false) {
   const { user, repo, token } = ghConfig;
   if (!user || !repo || !token) {
-    if (!silent) showToast('⚠️ Add GitHub settings first');
+    if (!silent) { ghLog('⚠️ GitHub credentials not saved yet. Fill in Settings and tap "Save & Sync Now".', true); }
     return false;
   }
 
-  const statusEl = document.getElementById('gh-status');
-  if (statusEl) statusEl.textContent = '🔄 Syncing…';
+  if (!silent) ghLog('🔄 Pushing data to GitHub…');
 
-  const FILE_PATH = 'data.json';
-  const API = `https://api.github.com/repos/${user}/${repo}/contents/${FILE_PATH}`;
-  const headers = {
-    'Authorization': `token ${token}`,
-    'Accept': 'application/vnd.github.v3+json',
-    'Content-Type': 'application/json'
-  };
+  const API = `https://api.github.com/repos/${user}/${repo}/contents/data.json`;
+  const headers = ghHeaders(token);
 
   try {
-    // 1. Get current SHA (needed to update an existing file)
+    // Get current SHA (required to update existing file)
     let sha = null;
     const getRes = await fetch(API, { headers });
     if (getRes.ok) {
       const existing = await getRes.json();
       sha = existing.sha;
-    } else if (getRes.status !== 404) {
-      throw new Error(`GitHub error ${getRes.status}`);
+    } else if (getRes.status === 401) {
+      const e = await getRes.json();
+      ghLog(`❌ Auth failed: ${e.message} — check your token.`, true);
+      return false;
+    } else if (getRes.status === 404) {
+      // File doesn't exist yet — that's fine, we'll create it
+    } else {
+      ghLog(`❌ GET failed: HTTP ${getRes.status}`, true);
+      return false;
     }
 
-    // 2. Push updated data
+    // Push data
     const content = btoa(unescape(encodeURIComponent(ghDataPayload())));
-    const body = {
-      message: `Data sync ${new Date().toISOString()}`,
-      content,
-      ...(sha ? { sha } : {})
-    };
-
     const putRes = await fetch(API, {
       method: 'PUT',
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        message: `Data sync ${new Date().toISOString()}`,
+        content,
+        ...(sha ? { sha } : {})
+      })
     });
 
     if (!putRes.ok) {
-      const err = await putRes.json();
-      throw new Error(err.message || `HTTP ${putRes.status}`);
+      const e = await putRes.json();
+      const msg = `❌ Push failed (${putRes.status}): ${e.message}`;
+      ghLog(msg, true);
+      if (!silent) showToast('❌ GitHub sync failed');
+      return false;
     }
 
     const ts = new Date().toLocaleTimeString();
-    if (statusEl) statusEl.textContent = `✅ Synced at ${ts}`;
-    if (!silent) showToast('✅ Saved to GitHub!');
     DB.save('pt_last_sync', Date.now());
-    // Show green sync dot in topbar
     const dot = document.getElementById('sync-dot');
-    if (dot) { dot.style.display = 'inline-block'; dot.title = `Synced at ${ts}`; }
+    if (dot) { dot.style.display = 'inline-block'; dot.title = `Synced ${ts}`; }
+    ghLog(`✅ Synced at ${ts}\nFile: data.json in ${user}/${repo}`);
+    if (!silent) showToast('✅ Saved to GitHub!');
     return true;
 
   } catch (err) {
-    console.error('GitHub sync failed:', err);
-    if (statusEl) statusEl.textContent = `❌ Sync failed: ${err.message}`;
-    if (!silent) showToast('❌ GitHub sync failed — check settings');
+    const msg = `❌ Network error: ${err.message}`;
+    ghLog(msg, true);
+    if (!silent) showToast('❌ Sync failed — check connection');
     return false;
   }
 }
@@ -1517,26 +1578,19 @@ async function githubLoad() {
   if (!user || !repo || !token) return;
 
   const API = `https://api.github.com/repos/${user}/${repo}/contents/data.json`;
-  const headers = {
-    'Authorization': `token ${token}`,
-    'Accept': 'application/vnd.github.v3+json'
-  };
-
   try {
-    const res = await fetch(API, { headers });
+    const res = await fetch(API, { headers: ghHeaders(token) });
     if (!res.ok) {
-      if (res.status === 404) return; // no data file yet — that's fine
+      if (res.status === 404) return; // no file yet
       throw new Error(`HTTP ${res.status}`);
     }
     const file = await res.json();
     const json = JSON.parse(decodeURIComponent(escape(atob(file.content.replace(/\n/g,'')))));
 
-    // Always load all fields from GitHub — it is the source of truth across devices
-    // (ghConfig is intentionally NOT overwritten — it lives only on each device)
-    if (json.settings)              { settings   = json.settings;   DB.save('pt_settings', settings); }
-    if (Array.isArray(json.entries)){ entries    = json.entries;     DB.save('pt_entries', entries); }
-    if (json.beSettings)            { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
-    if (json.taxRate !== undefined)  { taxRate   = json.taxRate;     DB.save('pt_taxrate', taxRate); }
+    if (json.settings)               { settings   = json.settings;   DB.save('pt_settings', settings); }
+    if (Array.isArray(json.entries)) { entries    = json.entries;     DB.save('pt_entries', entries); }
+    if (json.beSettings)             { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
+    if (json.taxRate !== undefined)  { taxRate    = json.taxRate;     DB.save('pt_taxrate', taxRate); }
 
     DB.save('pt_last_sync', Date.now());
     document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
@@ -1546,6 +1600,32 @@ async function githubLoad() {
     console.warn('GitHub load error:', err.message);
     showToast('⚠️ Could not load from GitHub: ' + err.message);
   }
+}
+
+// Save settings AND immediately sync so the user sees the result
+async function saveSettingsAndSync() {
+  // Read form values first
+  const user  = document.getElementById('set-gh-user')?.value.trim()  || '';
+  const repo  = document.getElementById('set-gh-repo')?.value.trim()  || '';
+  const token = document.getElementById('set-gh-token')?.value.trim() || '';
+
+  settings.address       = document.getElementById('set-address')?.value.trim() || '';
+  settings.purchasePrice = parseFloat(document.getElementById('set-purchase-price')?.value) || 350000;
+  settings.downPayment   = parseFloat(document.getElementById('set-down')?.value) || 70000;
+  settings.closingCosts  = parseFloat(document.getElementById('set-closing-costs')?.value) || 8000;
+  settings.otherInitial  = parseFloat(document.getElementById('set-other-initial')?.value) || 5000;
+  settings.purchaseYear  = parseInt(document.getElementById('set-purchase-year')?.value) || new Date().getFullYear();
+  ghConfig = { user, repo, token };
+  saveAll();
+
+  document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
+
+  if (!user || !repo || !token) {
+    ghLog('⚠️ Settings saved locally. Add GitHub credentials to enable cloud sync.', false);
+    showToast('✅ Settings saved');
+    return;
+  }
+  await githubSync(false);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1776,37 +1856,31 @@ function exportData() {
 // INIT
 // ══════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  // Show loading state briefly
-  document.getElementById('stat-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--ink3)">Loading…</div>';
+  document.getElementById('stat-grid').innerHTML =
+    '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--ink3)">Loading…</div>';
 
-  // Init IndexedDB and load state
   await DB.init();
   loadState();
 
-  // Set today's date as default in bill form
   document.getElementById('bill-date').value = now();
-
-  // Update topbar
   document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
-
-  // Render initial screen
   renderDashboard();
 
-  // Load latest data from GitHub (if configured) — runs in background
+  // Pull from GitHub on every load — this is what keeps devices in sync
   if (ghConfig.user && ghConfig.repo && ghConfig.token) {
     githubLoad();
   }
 });
 
-// Save to GitHub at end of session (page hide = tab close, app switch, etc.)
+// Auto-save to GitHub whenever app goes to background (tab switch, home button, lock screen)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && ghConfig.user && ghConfig.repo && ghConfig.token) {
-    // Use sendBeacon-style fire-and-forget; githubSync handles its own fetch
+  if (document.visibilityState === 'hidden' &&
+      ghConfig.user && ghConfig.repo && ghConfig.token) {
     githubSync(true);
   }
 });
 
-// Also catch hard closes on desktop
+// Catch browser/desktop close
 window.addEventListener('beforeunload', () => {
   if (ghConfig.user && ghConfig.repo && ghConfig.token) {
     githubSync(true);
