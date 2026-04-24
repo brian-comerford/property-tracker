@@ -1012,6 +1012,7 @@ function saveBill() {
 
   showToast(isIncome(cat) ? '✅ Income logged!' : '✅ Expense logged!');
   renderLogRecent();
+  pushToGitHub();
 }
 
 function renderLogRecent() {
@@ -1376,6 +1377,7 @@ function saveEntry(id) {
   // Refresh history if visible
   const histScreen = document.getElementById('screen-history');
   if (histScreen.classList.contains('active')) renderHistoryYear();
+  pushToGitHub();
 }
 
 function closeEntry(e) {
@@ -1391,6 +1393,21 @@ function deleteEntry(id) {
   showToast('🗑 Entry deleted');
   renderLogRecent();
   renderDashboard();
+  pushToGitHub();
+}
+
+// ── Silent background push — called after every data change ──────
+// Runs async in background; updates sync dot when done; never blocks the UI
+function pushToGitHub() {
+  if (!ghConfig.user || !ghConfig.repo || !ghConfig.token) return;
+  githubSync(true).then(ok => {
+    const dot = document.getElementById('sync-dot');
+    if (dot) {
+      dot.style.display = 'inline-block';
+      dot.style.background = ok ? '#7ecfa4' : '#e57373';
+      dot.title = ok ? `Synced ${new Date().toLocaleTimeString()}` : 'Sync failed — will retry on close';
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════
