@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>🏠 Property Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --ink:       #0f1923;
+    --ink2:      #3a4a58;
+    --ink3:      #7a8fa0;
+    --paper:     #f7f4ef;
+    --paper2:    #edeae3;
+    --paper3:    #e2ddd4;
+    --accent:    #1a6b4a;
+    --accent2:   #d4eddf;
+    --red:       #c0392b;
+    --red2:      #fdecea;
+    --gold:      #b8860b;
+    --gold2:     #fdf6e3;
+    --blue:      #1a4a7a;
+    --blue2:     #e3edf7;
+    --radius:    14px;
+    --shadow:    0 2px 16px rgba(15,25,35,.09);
+    --shadow-lg: 0 8px 40px rgba(15,25,35,.14);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--ink);
+    color: #fff;
+    padding: 14px 18px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: var(--shadow-lg);
+  }
+  .topbar-title { font-family: 'DM Serif Display', serif; font-size: 1.2rem; letter-spacing: .01em; }
+  .topbar-sub { font-size: .72rem; color: #9ab; margin-top: 1px; }
+  .topbar-right { display: flex; gap: 8px; }
+  .icon-btn {
+    background: rgba(255,255,255,.1); border: none; color: #fff;
+    width: 36px; height: 36px; border-radius: 10px;
+    font-size: 1.05rem; cursor: pointer; display: grid; place-items: center;
+    transition: background .15s;
+  }
+  .icon-btn:active { background: rgba(255,255,255,.22); }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: var(--ink);
+    display: flex;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-btn {
+    flex: 1; border: none; background: transparent; color: #7a8fa0;
+    padding: 10px 4px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-family: 'DM Sans', sans-serif; font-size: .65rem; font-weight: 500;
+    cursor: pointer; transition: color .15s; -webkit-tap-highlight-color: transparent;
+  }
+  .nav-btn .nav-icon { font-size: 1.3rem; }
+  .nav-btn.active { color: #7ecfa4; }
+  .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px #7ecfa4); }
+
+  /* ── SCREENS ── */
+  .screen { display: none; padding: 16px 14px 100px; animation: fadeUp .22s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
+
+  /* ── QUICK ADD FAB ── */
+  .fab {
+    position: fixed; bottom: calc(68px + env(safe-area-inset-bottom)); right: 18px;
+    width: 54px; height: 54px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    border: none; font-size: 1.6rem; cursor: pointer;
+    box-shadow: 0 4px 18px rgba(26,107,74,.4);
+    display: grid; place-items: center;
+    transition: transform .15s, box-shadow .15s;
+    z-index: 90;
+  }
+  .fab:active { transform: scale(.93); box-shadow: 0 2px 8px rgba(26,107,74,.3); }
+
+  /* ── CARDS ── */
+  .card {
+    background: #fff; border-radius: var(--radius);
+    box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden;
+  }
+  .card-header {
+    padding: 13px 16px 11px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--paper2);
+  }
+  .card-title { font-family: 'DM Serif Display', serif; font-size: 1rem; }
+  .card-badge {
+    font-size: .7rem; font-weight: 600; padding: 3px 9px;
+    border-radius: 20px; letter-spacing: .03em;
+  }
+  .card-body { padding: 14px 16px; }
+
+  /* ── STAT GRID ── */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .stat-card {
+    border-radius: var(--radius); padding: 14px 14px 12px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: -20px; right: -20px;
+    width: 70px; height: 70px; border-radius: 50%;
+    background: rgba(255,255,255,.12);
+  }
+  .stat-label { font-size: .68rem; font-weight: 500; opacity: .75; text-transform: uppercase; letter-spacing: .06em; }
+  .stat-value { font-family: 'DM Serif Display', serif; font-size: 1.45rem; margin-top: 4px; }
+  .stat-sub { font-size: .7rem; opacity: .7; margin-top: 2px; }
+  .green-card  { background: var(--accent);  color: #fff; }
+  .red-card    { background: var(--red);     color: #fff; }
+  .gold-card   { background: var(--gold);    color: #fff; }
+  .blue-card   { background: var(--blue);    color: #fff; }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: .68rem; font-weight: 600; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: .08em;
+    margin: 18px 0 8px 2px;
+  }
+
+  /* ── FORM ELEMENTS ── */
+  .form-group { margin-bottom: 13px; }
+  .form-label { font-size: .78rem; font-weight: 500; color: var(--ink2); margin-bottom: 5px; display: block; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 12px 14px;
+    background: var(--paper); border: 1.5px solid var(--paper3);
+    border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; color: var(--ink); outline: none;
+    transition: border-color .15s, box-shadow .15s;
+    -webkit-appearance: none; appearance: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,107,74,.12);
+  }
+  .form-textarea { min-height: 72px; resize: vertical; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600;
+    cursor: pointer; transition: all .15s; -webkit-tap-highlight-color: transparent;
+  }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 3px 12px rgba(26,107,74,.3); }
+  .btn-primary:active { transform: scale(.98); box-shadow: none; }
+  .btn-ghost { background: var(--paper2); color: var(--ink2); margin-top: 8px; }
+  .btn-danger { background: var(--red2); color: var(--red); }
+  .btn-sm {
+    width: auto; padding: 7px 14px; font-size: .82rem; border-radius: 8px;
+  }
+
+  /* ── LIST ITEMS ── */
+  .list-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--paper2);
+    -webkit-tap-highlight-color: transparent; cursor: pointer;
+    transition: background .12s;
+  }
+  .list-item:last-child { border-bottom: none; }
+  .list-item:active { background: var(--paper); }
+  .list-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: grid; place-items: center; font-size: 1.1rem; flex-shrink: 0;
+  }
+  .list-main { flex: 1; min-width: 0; }
+  .list-name { font-weight: 500; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list-meta { font-size: .75rem; color: var(--ink3); margin-top: 1px; }
+  .list-amount { font-family: 'DM Serif Display', serif; font-size: 1.05rem; font-weight: 400; }
+  .amount-pos { color: var(--accent); }
+  .amount-neg { color: var(--red); }
+
+  /* ── MODAL / SHEET ── */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    z-index: 200; display: none; align-items: flex-end;
+    animation: fadeIn .18s ease;
+  }
+  .overlay.open { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .sheet {
+    width: 100%; background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: 0 0 env(safe-area-inset-bottom);
+    max-height: 92dvh; overflow-y: auto;
+    animation: slideUp .22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+  .sheet-handle {
+    width: 36px; height: 4px; background: var(--paper3);
+    border-radius: 2px; margin: 10px auto 0;
+  }
+  .sheet-header {
+    padding: 14px 18px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--paper2);
+    position: sticky; top: 0; background: #fff; z-index: 1;
+  }
+  .sheet-title { font-family: 'DM Serif Display', serif; font-size: 1.15rem; }
+  .sheet-body { padding: 16px 18px 24px; }
+  .close-btn {
+    background: var(--paper2); border: none; color: var(--ink2);
+    width: 32px; height: 32px; border-radius: 8px;
+    font-size: 1rem; cursor: pointer; display: grid; place-items: center;
+  }
+
+  /* ── TABS ── */
+  .tab-strip {
+    display: flex; gap: 6px; overflow-x: auto;
+    padding: 0 2px 2px; margin-bottom: 14px;
+    scrollbar-width: none;
+  }
+  .tab-strip::-webkit-scrollbar { display: none; }
+  .tab-pill {
+    flex-shrink: 0; padding: 7px 14px; border-radius: 20px; border: none;
+    font-family: 'DM Sans', sans-serif; font-size: .82rem; font-weight: 500;
+    background: var(--paper2); color: var(--ink2); cursor: pointer;
+    transition: all .15s;
+  }
+  .tab-pill.active { background: var(--ink); color: #fff; }
+
+  /* ── PROGRESS BAR ── */
+  .progress-wrap { background: var(--paper2); border-radius: 4px; height: 7px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 4px; transition: width .4s ease; }
+
+  /* ── BREAKDOWN ROW ── */
+  .breakdown-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0; border-bottom: 1px solid var(--paper2);
+    font-size: .88rem;
+  }
+  .breakdown-row:last-child { border-bottom: none; }
+  .breakdown-label { color: var(--ink2); }
+  .breakdown-val { font-weight: 600; }
+
+  /* ── EMPTY STATE ── */
+  .empty { text-align: center; padding: 36px 20px; color: var(--ink3); }
+  .empty-icon { font-size: 2.4rem; margin-bottom: 10px; }
+  .empty-text { font-size: .88rem; line-height: 1.5; }
+
+  /* ── CHIP ── */
+  .chip {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: .72rem; font-weight: 600; letter-spacing: .03em;
+  }
+
+  /* ── YEAR HEADER ── */
+  .year-header {
+    font-family: 'DM Serif Display', serif; font-size: 1.4rem;
+    color: var(--ink); padding: 6px 0 10px;
+    border-bottom: 2px solid var(--ink); margin-bottom: 14px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .year-sub { font-family: 'DM Sans', sans-serif; font-size: .78rem; color: var(--ink3); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: calc(80px + env(safe-area-inset-bottom)); left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: #fff; padding: 10px 20px;
+    border-radius: 24px; font-size: .85rem; font-weight: 500;
+    opacity: 0; transition: all .25s; z-index: 300; white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .mt4 { margin-top: 4px; }
+  .mt8 { margin-top: 8px; }
+  .mt12 { margin-top: 12px; }
+  .divider { height: 1px; background: var(--paper2); margin: 10px 0; }
+  .text-muted { color: var(--ink3); font-size: .82rem; }
+  .fw6 { font-weight: 600; }
+  .serif { font-family: 'DM Serif Display', serif; }
+
+  /* ── RECUR BUTTONS ── */
+  .recur-btn {
+    padding: 7px 14px; border-radius: 20px; border: 1.5px solid var(--paper3);
+    background: var(--paper); color: var(--ink2);
+    font-family: 'DM Sans', sans-serif; font-size: .82rem; font-weight: 500;
+    cursor: pointer; transition: all .15s; -webkit-tap-highlight-color: transparent;
+  }
+  .recur-btn.active {
+    background: var(--ink); color: #fff; border-color: var(--ink);
+  }
+
+  /* ── EDIT FORM inside sheet ── */
+  .edit-form .form-input,
+  .edit-form .form-select { background: #fff; border-color: var(--paper3); }
+  .recur-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 12px; font-size: .7rem; font-weight: 600;
+    background: var(--blue2); color: var(--blue); margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div>
+    <div class="topbar-title">🏠 Property Tracker</div>
+    <div class="topbar-sub" id="topbar-address">My Rental Property</div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" onclick="downloadApp()" title="Download App">⬇️</button>
+    <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
+    <button class="icon-btn" onclick="exportXLSX()" title="Export to Google Sheets (.xlsx)">📊</button>
+    <button class="icon-btn" onclick="exportData()" title="Export CSV">📤</button>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN: DASHBOARD ══════════════ -->
+<div class="screen active" id="screen-dashboard">
+  <div class="stat-grid" id="stat-grid"></div>
+
+  <div class="section-label">This Month</div>
+  <div class="card" id="this-month-card"></div>
+
+  <div class="section-label">Recent Activity</div>
+  <div class="card" id="recent-card"></div>
+
+  <div class="section-label">Cash Flow (12 months)</div>
+  <div class="card">
+    <div class="card-body" id="cashflow-chart"></div>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN: LOG BILL ══════════════ -->
+<div class="screen" id="screen-log">
+  <div class="section-label">Quick Add</div>
+  <div class="card">
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-input" id="bill-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount ($)</label>
+          <input type="number" inputmode="decimal" class="form-input" id="bill-amount" placeholder="0.00" step="0.01">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="bill-category">
+          <optgroup label="💰 Income">
+            <option value="Rental Income">Rental Income</option>
+            <option value="Other Income">Other Income</option>
+          </optgroup>
+          <optgroup label="🏦 Fixed Expenses">
+            <option value="Mortgage (P&I)">Mortgage (P&I)</option>
+            <option value="Property Tax">Property Tax</option>
+            <option value="Homeowners Insurance">Homeowners Insurance</option>
+            <option value="HOA Fee">HOA Fee</option>
+          </optgroup>
+          <optgroup label="⚡ Utilities">
+            <option value="Electricity">Electricity</option>
+            <option value="Gas/Heat">Gas / Heat</option>
+            <option value="Water & Sewer">Water & Sewer</option>
+            <option value="Trash">Trash</option>
+            <option value="Internet">Internet</option>
+          </optgroup>
+          <optgroup label="🔧 Maintenance">
+            <option value="Repairs/Maintenance">Repairs / Maintenance</option>
+            <option value="Capital Improvement">Capital Improvement</option>
+            <option value="Lawn/Snow">Lawn / Snow Removal</option>
+            <option value="Pest Control">Pest Control</option>
+          </optgroup>
+          <optgroup label="📋 Other">
+            <option value="Property Mgmt">Property Management</option>
+            <option value="Other Expense">Other Expense</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" class="form-input" id="bill-desc" placeholder="e.g. January rent — Bedroom 1">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Notes <span class="text-muted">(optional)</span></label>
+        <input type="text" class="form-input" id="bill-notes" placeholder="Annual payment, tenant name, etc.">
+      </div>
+
+      <!-- Recurring toggle -->
+      <div class="form-group">
+        <label class="form-label">Recurring?</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="recur-btn active" data-val="none" onclick="setRecur(this)">One-time</button>
+          <button type="button" class="recur-btn" data-val="monthly" onclick="setRecur(this)">Monthly</button>
+          <button type="button" class="recur-btn" data-val="quarterly" onclick="setRecur(this)">Quarterly</button>
+          <button type="button" class="recur-btn" data-val="annually" onclick="setRecur(this)">Annually</button>
+        </div>
+        <input type="hidden" id="bill-recur" value="none">
+      </div>
+
+      <button class="btn btn-primary" onclick="saveBill()">Add Entry</button>
+    </div>
+  </div>
+
+  <div class="section-label">Recent Entries</div>
+  <div class="card" id="log-recent"></div>
+</div>
+
+<!-- ══════════════ SCREEN: HISTORY ══════════════ -->
+<div class="screen" id="screen-history">
+  <div class="tab-strip" id="history-tabs"></div>
+  <div id="history-content"></div>
+</div>
+
+<!-- ══════════════ SCREEN: TAX ══════════════ -->
+<div class="screen" id="screen-tax">
+  <div class="tab-strip" id="tax-year-tabs"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Tax Rate</span>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Marginal Tax Rate</label>
+          <input type="number" inputmode="decimal" class="form-input" id="tax-rate-input"
+            placeholder="22" step="0.1" min="0" max="60" oninput="renderTax()">
+        </div>
+        <div style="display:flex;align-items:flex-end;padding-bottom:0">
+          <span class="text-muted" style="padding-bottom:12px">%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tax-content"></div>
+
+  <div class="card" style="margin-top:12px">
+    <div class="card-body">
+      <p class="text-muted" style="line-height:1.6;font-size:.8rem">
+        ⚠️ Estimates only. Rental income is taxable and expenses are deductible proportionally to rental use (2/3 of your home). Depreciation, passive activity rules, and state taxes are not included. Consult a licensed CPA.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN: BREAK-EVEN ══════════════ -->
+<div class="screen" id="screen-breakeven">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Sale Assumptions</span>
+      <span class="card-badge" style="background:var(--blue2);color:var(--blue)">Inputs</span>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Years Owned</label>
+          <input type="number" inputmode="decimal" class="form-input" id="be-years" placeholder="5" oninput="renderBreakeven()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Annual Appreciation %</label>
+          <input type="number" inputmode="decimal" class="form-input" id="be-appreciation" placeholder="3" step="0.1" oninput="renderBreakeven()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Agent Commission %</label>
+          <input type="number" inputmode="decimal" class="form-input" id="be-commission" placeholder="6" step="0.1" oninput="renderBreakeven()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sale Closing Costs %</label>
+          <input type="number" inputmode="decimal" class="form-input" id="be-closing" placeholder="1" step="0.1" oninput="renderBreakeven()">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Estimated Loan Balance at Sale ($)</label>
+        <input type="number" inputmode="decimal" class="form-input" id="be-loan" placeholder="280000" oninput="renderBreakeven()">
+      </div>
+    </div>
+  </div>
+
+  <div id="breakeven-results"></div>
+</div>
+
+<!-- ══════════════ BOTTOM NAV ══════════════ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="switchScreen('dashboard',this)">
+    <span class="nav-icon">📊</span>Dashboard
+  </button>
+  <button class="nav-btn" onclick="switchScreen('log',this)">
+    <span class="nav-icon">➕</span>Log Bill
+  </button>
+  <button class="nav-btn" onclick="switchScreen('history',this)">
+    <span class="nav-icon">📋</span>History
+  </button>
+  <button class="nav-btn" onclick="switchScreen('tax',this)">
+    <span class="nav-icon">🧾</span>Tax
+  </button>
+  <button class="nav-btn" onclick="switchScreen('breakeven',this)">
+    <span class="nav-icon">📈</span>Break-Even
+  </button>
+</nav>
+
+<!-- ══════════════ SETTINGS SHEET ══════════════ -->
+<div class="overlay" id="settings-overlay" onclick="closeSettings(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title">Settings</span>
+      <button class="close-btn" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label">Property Address</label>
+        <input type="text" class="form-input" id="set-address" placeholder="123 Main St">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purchase Price ($)</label>
+        <input type="number" inputmode="decimal" class="form-input" id="set-purchase-price" placeholder="350000">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Down Payment ($)</label>
+          <input type="number" inputmode="decimal" class="form-input" id="set-down" placeholder="70000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Closing Costs ($)</label>
+          <input type="number" inputmode="decimal" class="form-input" id="set-closing-costs" placeholder="8000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Other Initial Costs ($)</label>
+          <input type="number" inputmode="decimal" class="form-input" id="set-other-initial" placeholder="5000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Purchase Year</label>
+          <input type="number" inputmode="numeric" class="form-input" id="set-purchase-year" placeholder="2024">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+      <div class="divider" style="margin-top:20px"></div>
+      <div class="section-label">GitHub Data Sync</div>
+      <p class="text-muted" style="margin-bottom:10px;line-height:1.5;font-size:.8rem">Your data will be saved as <code>data.json</code> in your repo at the end of every session and can be synced manually anytime.</p>
+      <div class="form-group">
+        <label class="form-label">GitHub Username</label>
+        <input type="text" class="form-input" id="set-gh-user" placeholder="yourusername" autocomplete="off" autocorrect="off" autocapitalize="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repository Name</label>
+        <input type="text" class="form-input" id="set-gh-repo" placeholder="property-tracker" autocomplete="off" autocorrect="off" autocapitalize="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Personal Access Token</label>
+        <input type="password" class="form-input" id="set-gh-token" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="saveSettings()">Save All Settings</button>
+        <button class="btn btn-ghost" style="flex:1;margin-top:0" onclick="githubSync()">🔄 Sync Now</button>
+      </div>
+      <div id="gh-status" style="margin-top:10px;font-size:.8rem;color:var(--ink3);text-align:center"></div>
+      <div class="divider" style="margin-top:16px"></div>
+      <div class="section-label">Danger Zone</div>
+      <button class="btn btn-danger mt8" onclick="confirmClearData()">🗑 Clear All Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- ENTRY DETAIL SHEET -->
+<div class="overlay" id="entry-overlay" onclick="closeEntry(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title" id="entry-sheet-title">Entry Details</span>
+      <button class="close-btn" onclick="closeEntry()">✕</button>
+    </div>
+    <div class="sheet-body" id="entry-sheet-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// PWA — inline service worker + manifest
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  // Inject web app manifest dynamically
+  const manifest = {
+    name: 'Property Tracker',
+    short_name: 'PropTracker',
+    description: 'Rental property income, expenses & tax tracker',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#0f1923',
+    theme_color: '#0f1923',
+    orientation: 'portrait',
+    icons: [
+      { src: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>', sizes: '192x192', type: 'image/svg+xml' },
+      { src: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>', sizes: '512x512', type: 'image/svg+xml' }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const link = document.createElement('link');
+  link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+
+  // Register inline service worker for offline support
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+      const CACHE = 'pt-v1';
+      const FONTS = [
+        'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap'
+      ];
+      self.addEventListener('install', e => {
+        e.waitUntil(caches.open(CACHE).then(c => c.addAll(FONTS).catch(()=>{})));
+        self.skipWaiting();
+      });
+      self.addEventListener('activate', e => {
+        e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+        self.clients.claim();
+      });
+      self.addEventListener('fetch', e => {
+        e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+          if (res.ok && e.request.url.includes('fonts')) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => new Response('Offline', {status:503}))));
+      });
+    `;
+    const swBlob = new Blob([swCode], {type:'text/javascript'});
+    const swUrl = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swUrl, {scope: './'}).catch(()=>{});
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// DATA LAYER — IndexedDB (persistent, not cleared by iOS low storage)
+// Falls back to localStorage if IndexedDB unavailable
+// ══════════════════════════════════════════════════════════════════
+const DB = (() => {
+  const DB_NAME = 'PropertyTrackerDB';
+  const DB_VER  = 1;
+  const STORE   = 'keyval';
+  let _db = null;
+
+  function openDB() {
+    if (_db) return Promise.resolve(_db);
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
+      req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+      req.onerror   = () => reject(req.error);
+    });
+  }
+
+  async function idbGet(key) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => reject(req.error);
+    });
+  }
+
+  async function idbSet(key, val) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(STORE, 'readwrite');
+      const req = tx.objectStore(STORE).put(val, key);
+      req.onsuccess = () => resolve();
+      req.onerror   = () => reject(req.error);
+    });
+  }
+
+  // Sync in-memory cache so reads stay synchronous for app logic
+  const cache = {};
+
+  return {
+    // Call once at startup — loads everything from IDB into memory
+    async init() {
+      try {
+        const keys = ['pt_settings','pt_entries','pt_be','pt_taxrate'];
+        await Promise.all(keys.map(async k => {
+          const v = await idbGet(k);
+          if (v !== undefined) cache[k] = v;
+        }));
+        // Migrate from localStorage if first run with IDB
+        if (!cache['pt_entries']) {
+          keys.forEach(k => {
+            try {
+              const v = localStorage.getItem(k);
+              if (v) { cache[k] = JSON.parse(v); idbSet(k, cache[k]); }
+            } catch {}
+          });
+        }
+      } catch {
+        // IDB failed — fall back to localStorage silently
+        ['pt_settings','pt_entries','pt_be','pt_taxrate'].forEach(k => {
+          try { const v = localStorage.getItem(k); if (v) cache[k] = JSON.parse(v); } catch {}
+        });
+      }
+    },
+    load(key, def) { return cache[key] !== undefined ? cache[key] : def; },
+    save(key, val) {
+      cache[key] = val;
+      idbSet(key, val).catch(() => {
+        try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+      });
+      // Also keep localStorage as backup mirror
+      try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+    },
+    async clear() {
+      Object.keys(cache).forEach(k => delete cache[k]);
+      try {
+        const db = await openDB();
+        const tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).clear();
+      } catch {}
+      try { localStorage.clear(); } catch {}
+    }
+  };
+})();
+
+// ── App state (populated after DB.init()) ─────────────────────────
+let settings, entries, beSettings, taxRate, ghConfig;
+
+function loadState() {
+  settings   = DB.load('pt_settings', { address:'', purchasePrice:350000, downPayment:70000, closingCosts:8000, otherInitial:5000, purchaseYear:new Date().getFullYear() });
+  entries    = DB.load('pt_entries', []);
+  beSettings = DB.load('pt_be', { years:5, appreciation:3, commission:6, closing:1, loan:280000 });
+  taxRate    = DB.load('pt_taxrate', 22);
+  ghConfig   = DB.load('pt_gh', { user:'', repo:'', token:'' });
+}
+
+function saveAll() {
+  DB.save('pt_settings', settings);
+  DB.save('pt_entries', entries);
+  DB.save('pt_be', beSettings);
+  DB.save('pt_taxrate', taxRate);
+  DB.save('pt_gh', ghConfig);
+}
+
+// ── CATEGORIES ────────────────────────────────────────────────────
+const INCOME_CATS = ['Rental Income', 'Other Income'];
+const isIncome = c => INCOME_CATS.includes(c);
+
+const CAT_META = {
+  'Rental Income':      { icon:'🏠', color:'#e3faf0', text:'#1a6b4a' },
+  'Other Income':       { icon:'💵', color:'#e3faf0', text:'#1a6b4a' },
+  'Mortgage (P&I)':     { icon:'🏦', color:'#e3edf7', text:'#1a4a7a' },
+  'Property Tax':       { icon:'🏛️', color:'#fdf6e3', text:'#b8860b' },
+  'Homeowners Insurance':{ icon:'🛡️', color:'#e3edf7', text:'#1a4a7a' },
+  'HOA Fee':            { icon:'🏘️', color:'#e3edf7', text:'#1a4a7a' },
+  'Electricity':        { icon:'⚡', color:'#fff9e3', text:'#b8860b' },
+  'Gas/Heat':           { icon:'🔥', color:'#fdecea', text:'#c0392b' },
+  'Water & Sewer':      { icon:'💧', color:'#e3edf7', text:'#1a4a7a' },
+  'Trash':              { icon:'🗑️', color:'#f2f2f2', text:'#555' },
+  'Internet':           { icon:'📶', color:'#e3edf7', text:'#1a4a7a' },
+  'Repairs/Maintenance':{ icon:'🔧', color:'#fdecea', text:'#c0392b' },
+  'Capital Improvement':{ icon:'🏗️', color:'#fdecea', text:'#c0392b' },
+  'Lawn/Snow':          { icon:'🌿', color:'#e3faf0', text:'#1a6b4a' },
+  'Pest Control':       { icon:'🪲', color:'#f2f2f2', text:'#555' },
+  'Property Mgmt':      { icon:'👤', color:'#e3edf7', text:'#1a4a7a' },
+  'Other Expense':      { icon:'📌', color:'#f2f2f2', text:'#555' },
+};
+
+function catMeta(c) { return CAT_META[c] || { icon:'📄', color:'#f2f2f2', text:'#555' }; }
+
+// ══════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════
+const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmt0 = n => '$' + Math.abs(n).toLocaleString('en-US', {maximumFractionDigits:0});
+const fmtSign = n => (n < 0 ? '-' : '+') + fmt(n);
+
+function getMonthKey(dateStr) { return dateStr ? dateStr.slice(0,7) : ''; }
+function getYear(dateStr) { return dateStr ? parseInt(dateStr.slice(0,4)) : 0; }
+
+function allYears() {
+  const s = new Set(entries.map(e => getYear(e.date)).filter(Boolean));
+  if (s.size === 0) s.add(new Date().getFullYear());
+  return [...s].sort();
+}
+
+function sumByFilter(filter) {
+  return entries.filter(filter).reduce((s, e) => s + (parseFloat(e.amount)||0), 0);
+}
+
+function now() {
+  const d = new Date(); 
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function todayMonthKey() { return now().slice(0,7); }
+function monthName(key) {
+  const [y,m] = key.split('-');
+  return new Date(y,m-1,1).toLocaleString('default',{month:'long'}) + ' ' + y;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════════════════
+function switchScreen(name, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'log') renderLogRecent();
+  if (name === 'history') renderHistory();
+  if (name === 'tax') renderTax();
+  if (name === 'breakeven') renderBreakeven();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════════════
+function renderDashboard() {
+  const mk = todayMonthKey();
+  const yr = new Date().getFullYear();
+
+  const monthIncome = sumByFilter(e => getMonthKey(e.date) === mk && isIncome(e.category));
+  const monthExp    = sumByFilter(e => getMonthKey(e.date) === mk && !isIncome(e.category));
+  const monthNet    = monthIncome - monthExp;
+  const yrIncome    = sumByFilter(e => getYear(e.date) === yr && isIncome(e.category));
+  const yrExp       = sumByFilter(e => getYear(e.date) === yr && !isIncome(e.category));
+  const yrNet       = yrIncome - yrExp;
+
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat-card green-card">
+      <div class="stat-label">Monthly Income</div>
+      <div class="stat-value">${fmt0(monthIncome)}</div>
+      <div class="stat-sub">${monthName(mk)}</div>
+    </div>
+    <div class="stat-card ${monthNet >= 0 ? 'blue-card' : 'red-card'}">
+      <div class="stat-label">Monthly Net</div>
+      <div class="stat-value">${monthNet < 0 ? '-' : ''}${fmt0(Math.abs(monthNet))}</div>
+      <div class="stat-sub">${monthNet >= 0 ? '✓ Cash positive' : '⚠ Cash negative'}</div>
+    </div>
+    <div class="stat-card gold-card">
+      <div class="stat-label">${yr} Income</div>
+      <div class="stat-value">${fmt0(yrIncome)}</div>
+      <div class="stat-sub">Year to date</div>
+    </div>
+    <div class="stat-card ${yrNet >= 0 ? 'green-card' : 'red-card'}">
+      <div class="stat-label">${yr} Net</div>
+      <div class="stat-value">${yrNet < 0 ? '-' : ''}${fmt0(Math.abs(yrNet))}</div>
+      <div class="stat-sub">Year to date</div>
+    </div>
+  `;
+
+  // This month breakdown
+  const monthEntries = entries.filter(e => getMonthKey(e.date) === mk).slice().sort((a,b) => b.date.localeCompare(a.date));
+  const card = document.getElementById('this-month-card');
+  if (!monthEntries.length) {
+    card.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><div class="empty-text">No entries for ${monthName(mk)} yet.<br>Tap Log Bill to add one.</div></div>`;
+  } else {
+    const rows = monthEntries.slice(0,5).map(e => entryRow(e)).join('');
+    card.innerHTML = rows + (monthEntries.length > 5 ? `<div class="list-item" style="justify-content:center;color:var(--ink3);font-size:.82rem" onclick="switchScreen('history',document.querySelectorAll('.nav-btn')[2])">View all ${monthEntries.length} entries →</div>` : '');
+  }
+
+  // Recent 5
+  const recent = [...entries].sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+  const rcCard = document.getElementById('recent-card');
+  if (!recent.length) {
+    rcCard.innerHTML = `<div class="empty"><div class="empty-icon">🏠</div><div class="empty-text">No entries yet. Start by logging your first bill!</div></div>`;
+  } else {
+    rcCard.innerHTML = recent.map(e => entryRow(e)).join('');
+  }
+
+  // Mini bar chart (last 6 months)
+  renderMiniChart();
+}
+
+function renderMiniChart() {
+  const months = [];
+  const d = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const m = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    const key = `${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}`;
+    months.push({ key, label: m.toLocaleString('default',{month:'short'}) });
+  }
+  const maxAbs = Math.max(1, ...months.map(m => {
+    const inc = sumByFilter(e => getMonthKey(e.date) === m.key && isIncome(e.category));
+    const exp = sumByFilter(e => getMonthKey(e.date) === m.key && !isIncome(e.category));
+    return Math.max(inc, exp);
+  }));
+
+  const bars = months.map(m => {
+    const inc = sumByFilter(e => getMonthKey(e.date) === m.key && isIncome(e.category));
+    const exp = sumByFilter(e => getMonthKey(e.date) === m.key && !isIncome(e.category));
+    const net = inc - exp;
+    const incH = Math.round((inc/maxAbs)*60);
+    const expH = Math.round((exp/maxAbs)*60);
+    return `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="font-size:.62rem;font-weight:600;color:${net>=0?'var(--accent)':'var(--red)'}">${net===0?'–':(net>0?'+':'')}${fmt0(net).replace('$','$')}</div>
+        <div style="width:100%;height:64px;display:flex;align-items:flex-end;gap:2px;justify-content:center">
+          <div style="width:10px;height:${incH}px;background:var(--accent);border-radius:3px 3px 0 0;opacity:.85"></div>
+          <div style="width:10px;height:${expH}px;background:var(--red);border-radius:3px 3px 0 0;opacity:.7"></div>
+        </div>
+        <div style="font-size:.65rem;color:var(--ink3)">${m.label}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('cashflow-chart').innerHTML = `
+    <div style="display:flex;gap:4px;align-items:flex-end;padding-bottom:4px">${bars}</div>
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:.7rem;color:var(--ink3)">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--accent);border-radius:2px;display:inline-block"></span>Income</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--red);border-radius:2px;display:inline-block"></span>Expenses</span>
+    </div>`;
+}
+
+function recurLabel(r) {
+  return { monthly:'Monthly', quarterly:'Quarterly', annually:'Annually' }[r] || '';
+}
+
+function entryRow(e) {
+  const m = catMeta(e.category);
+  const income = isIncome(e.category);
+  const recurBadge = e.recur && e.recur !== 'none'
+    ? `<span class="recur-badge">🔁 ${recurLabel(e.recur)}</span>` : '';
+  return `<div class="list-item" onclick="openEntry('${e.id}')">
+    <div class="list-icon" style="background:${m.color};">${m.icon}</div>
+    <div class="list-main">
+      <div class="list-name">${e.desc || e.category}${recurBadge}</div>
+      <div class="list-meta">${e.category} · ${e.date}</div>
+    </div>
+    <div class="list-amount ${income ? 'amount-pos' : 'amount-neg'}">${income?'+':'-'}${fmt(e.amount)}</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LOG BILL
+// ══════════════════════════════════════════════════════════════════
+function setRecur(btn) {
+  document.querySelectorAll('.recur-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('bill-recur').value = btn.dataset.val;
+}
+
+function saveBill() {
+  const date   = document.getElementById('bill-date').value;
+  const amount = parseFloat(document.getElementById('bill-amount').value);
+  const cat    = document.getElementById('bill-category').value;
+  const desc   = document.getElementById('bill-desc').value.trim();
+  const notes  = document.getElementById('bill-notes').value.trim();
+  const recur  = document.getElementById('bill-recur').value || 'none';
+
+  if (!date)         { showToast('⚠️ Please enter a date'); return; }
+  if (!amount || isNaN(amount) || amount <= 0) { showToast('⚠️ Please enter a valid amount'); return; }
+
+  const entry = {
+    id: Date.now().toString(),
+    date, category: cat,
+    amount: parseFloat(amount.toFixed(2)),
+    desc: desc || cat, notes, recur
+  };
+  entries.unshift(entry);
+  saveAll();
+
+  // Reset form (keep date & category for quick repeat entry)
+  document.getElementById('bill-amount').value = '';
+  document.getElementById('bill-desc').value = '';
+  document.getElementById('bill-notes').value = '';
+  // Reset recur to one-time
+  document.getElementById('bill-recur').value = 'none';
+  document.querySelectorAll('.recur-btn').forEach(b => b.classList.toggle('active', b.dataset.val === 'none'));
+  document.getElementById('bill-amount').focus();
+
+  showToast(isIncome(cat) ? '✅ Income logged!' : '✅ Expense logged!');
+  renderLogRecent();
+}
+
+function renderLogRecent() {
+  const recent = [...entries].sort((a,b) => b.date.localeCompare(a.date)).slice(0,8);
+  const el = document.getElementById('log-recent');
+  if (!recent.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No entries yet</div></div>`;
+  } else {
+    el.innerHTML = recent.map(e => entryRow(e)).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════════════════════════════
+let historyYear = new Date().getFullYear();
+
+function renderHistory() {
+  const years = allYears();
+  const tabs = document.getElementById('history-tabs');
+  tabs.innerHTML = years.map(y =>
+    `<button class="tab-pill ${y===historyYear?'active':''}" onclick="setHistoryYear(${y},this)">${y}</button>`
+  ).join('');
+  renderHistoryYear();
+}
+
+function setHistoryYear(y, btn) {
+  historyYear = y;
+  document.querySelectorAll('#history-tabs .tab-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistoryYear();
+}
+
+function renderHistoryYear() {
+  const yr = historyYear;
+  const yrEntries = entries.filter(e => getYear(e.date) === yr)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  const income = yrEntries.filter(e => isIncome(e.category)).reduce((s,e) => s + e.amount, 0);
+  const expense = yrEntries.filter(e => !isIncome(e.category)).reduce((s,e) => s + e.amount, 0);
+  const net = income - expense;
+
+  // Group by month
+  const byMonth = {};
+  yrEntries.forEach(e => {
+    const mk = getMonthKey(e.date);
+    if (!byMonth[mk]) byMonth[mk] = [];
+    byMonth[mk].push(e);
+  });
+
+  const monthBlocks = Object.keys(byMonth).sort().reverse().map(mk => {
+    const mes = byMonth[mk];
+    const mInc = mes.filter(e => isIncome(e.category)).reduce((s,e) => s+e.amount,0);
+    const mExp = mes.filter(e => !isIncome(e.category)).reduce((s,e) => s+e.amount,0);
+    return `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="font-size:.92rem">${monthName(mk)}</span>
+          <span style="font-size:.8rem;font-weight:600;color:${mInc-mExp>=0?'var(--accent)':'var(--red)'}">${mInc-mExp>=0?'+':''}${fmt0(mInc-mExp)}</span>
+        </div>
+        ${mes.map(e => entryRow(e)).join('')}
+      </div>`;
+  }).join('');
+
+  document.getElementById('history-content').innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+        <div><div class="text-muted" style="font-size:.68rem;margin-bottom:4px">INCOME</div><div class="serif" style="font-size:1.1rem;color:var(--accent)">${fmt0(income)}</div></div>
+        <div><div class="text-muted" style="font-size:.68rem;margin-bottom:4px">EXPENSES</div><div class="serif" style="font-size:1.1rem;color:var(--red)">${fmt0(expense)}</div></div>
+        <div><div class="text-muted" style="font-size:.68rem;margin-bottom:4px">NET</div><div class="serif" style="font-size:1.1rem;color:${net>=0?'var(--accent)':'var(--red)'}">${net<0?'-':''}${fmt0(Math.abs(net))}</div></div>
+      </div>
+    </div>
+    ${monthBlocks || '<div class="card"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No entries for '+yr+'</div></div></div>'}
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TAX SUMMARY
+// ══════════════════════════════════════════════════════════════════
+let taxYear = new Date().getFullYear();
+
+function renderTax() {
+  const years = allYears();
+  // Sync tax rate input
+  const rateInput = document.getElementById('tax-rate-input');
+  if (rateInput && !rateInput.value) rateInput.value = taxRate;
+
+  const tabs = document.getElementById('tax-year-tabs');
+  tabs.innerHTML = years.map(y =>
+    `<button class="tab-pill ${y===taxYear?'active':''}" onclick="setTaxYear(${y},this)">${y}</button>`
+  ).join('');
+  renderTaxYear();
+}
+
+function setTaxYear(y, btn) {
+  taxYear = y;
+  document.querySelectorAll('#tax-year-tabs .tab-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTaxYear();
+}
+
+function renderTaxYear() {
+  const yr = taxYear;
+  const rate = (parseFloat(document.getElementById('tax-rate-input')?.value) || taxRate) / 100;
+  taxRate = rate * 100;
+  DB.save('pt_taxrate', taxRate);
+
+  const totalIncome = sumByFilter(e => getYear(e.date)===yr && isIncome(e.category));
+  const totalExp    = sumByFilter(e => getYear(e.date)===yr && !isIncome(e.category));
+  const net = totalIncome - totalExp;
+  const taxOwed = Math.max(0, net) * rate;
+
+  const catBreakdown = {};
+  entries.filter(e => getYear(e.date)===yr).forEach(e => {
+    catBreakdown[e.category] = (catBreakdown[e.category]||0) + e.amount;
+  });
+
+  const incomeRows = Object.entries(catBreakdown)
+    .filter(([c]) => isIncome(c))
+    .sort((a,b) => b[1]-a[1])
+    .map(([c,v]) => `<div class="breakdown-row"><span class="breakdown-label">${catMeta(c).icon} ${c}</span><span class="breakdown-val" style="color:var(--accent)">${fmt(v)}</span></div>`).join('');
+
+  const expRows = Object.entries(catBreakdown)
+    .filter(([c]) => !isIncome(c))
+    .sort((a,b) => b[1]-a[1])
+    .map(([c,v]) => `<div class="breakdown-row"><span class="breakdown-label">${catMeta(c).icon} ${c}</span><span class="breakdown-val" style="color:var(--red)">${fmt(v)}</span></div>`).join('');
+
+  document.getElementById('tax-content').innerHTML = `
+    <div class="card">
+      <div class="card-header"><span class="card-title">${yr} Summary</span></div>
+      <div class="card-body">
+        <div class="breakdown-row"><span class="breakdown-label fw6">Gross Rental Income</span><span class="breakdown-val" style="color:var(--accent)">${fmt(totalIncome)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label fw6">Total Expenses</span><span class="breakdown-val" style="color:var(--red)">(${fmt(totalExp)})</span></div>
+        <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
+          <span class="breakdown-label fw6">Net Taxable Income</span>
+          <span class="breakdown-val serif" style="font-size:1.1rem;color:${net>=0?'var(--accent)':'var(--red)'};">${net<0?'('+fmt(-net)+')':fmt(net)}</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label fw6">Est. Tax Owed (${(rate*100).toFixed(1)}%)</span>
+          <span class="breakdown-val" style="color:var(--red)">${taxOwed>0?fmt(taxOwed):'—'}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Income Breakdown</div>
+    <div class="card"><div class="card-body">${incomeRows || '<div class="text-muted" style="text-align:center;padding:12px 0">No income logged</div>'}</div></div>
+
+    <div class="section-label">Expense Breakdown</div>
+    <div class="card"><div class="card-body">${expRows || '<div class="text-muted" style="text-align:center;padding:12px 0">No expenses logged</div>'}</div></div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BREAK-EVEN
+// ══════════════════════════════════════════════════════════════════
+function renderBreakeven() {
+  // Read inputs (or defaults)
+  const get = (id, def) => parseFloat(document.getElementById(id)?.value) || def;
+
+  const years       = get('be-years', beSettings.years);
+  const appreciation= get('be-appreciation', beSettings.appreciation) / 100;
+  const commission  = get('be-commission', beSettings.commission) / 100;
+  const closingPct  = get('be-closing', beSettings.closing) / 100;
+  const loan        = get('be-loan', beSettings.loan);
+
+  // Populate inputs if empty
+  ['years','appreciation','commission','closing','loan'].forEach((k,i) => {
+    const el = document.getElementById('be-'+['years','appreciation','commission','closing','loan'][i]);
+    if (el && !el.value) el.value = [years, appreciation*100, commission*100, closingPct*100, loan][i];
+  });
+
+  beSettings = { years, appreciation: appreciation*100, commission: commission*100, closing: closingPct*100, loan };
+  DB.save('pt_be', beSettings);
+
+  const pp = settings.purchasePrice || 350000;
+  const initialInvestment = (settings.downPayment||70000) + (settings.closingCosts||8000) + (settings.otherInitial||5000);
+
+  const totalBillsPaid  = sumByFilter(e => !isIncome(e.category));
+  const totalRentRcvd   = sumByFilter(e => isIncome(e.category));
+  const totalMaint      = sumByFilter(e => ['Repairs/Maintenance','Capital Improvement'].includes(e.category));
+  const netCostBasis    = initialInvestment + totalBillsPaid - totalRentRcvd;
+
+  const breakEvenRaw    = netCostBasis + loan;
+  const breakEvenSale   = (netCostBasis + loan) / (1 - commission - closingPct);
+  const estMarketValue  = pp * Math.pow(1 + appreciation, years);
+  const estGain         = estMarketValue - breakEvenSale;
+  const roi             = initialInvestment > 0 ? estGain / initialInvestment : 0;
+
+  const gainColor = estGain >= 0 ? 'var(--accent)' : 'var(--red)';
+
+  document.getElementById('breakeven-results').innerHTML = `
+    <div class="section-label">Cost Basis</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="breakdown-row"><span class="breakdown-label">Initial Investment</span><span class="breakdown-val">${fmt(initialInvestment)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Total Bills Paid (logged)</span><span class="breakdown-val">${fmt(totalBillsPaid)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Less: Rental Income (logged)</span><span class="breakdown-val" style="color:var(--accent)">−${fmt(totalRentRcvd)}</span></div>
+        <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
+          <span class="breakdown-label fw6">Net Cost Basis</span>
+          <span class="breakdown-val serif" style="font-size:1.1rem">${fmt(netCostBasis)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Break-Even Price</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="breakdown-row"><span class="breakdown-label">Net Cost Basis</span><span class="breakdown-val">${fmt(netCostBasis)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Loan Balance at Sale</span><span class="breakdown-val">${fmt(loan)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Selling Costs (${((commission+closingPct)*100).toFixed(1)}%)</span><span class="breakdown-val">accounted in price</span></div>
+        <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
+          <span class="breakdown-label fw6">Break-Even Sale Price</span>
+          <span class="breakdown-val serif" style="font-size:1.2rem;color:var(--gold)">${fmt(breakEvenSale)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Projected Outcome (${years} yrs @ ${(appreciation*100).toFixed(1)}%/yr)</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="breakdown-row"><span class="breakdown-label">Purchase Price</span><span class="breakdown-val">${fmt(pp)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Estimated Market Value</span><span class="breakdown-val">${fmt(estMarketValue)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Break-Even Price</span><span class="breakdown-val">${fmt(breakEvenSale)}</span></div>
+        <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
+          <span class="breakdown-label fw6">Est. Gain / (Loss)</span>
+          <span class="breakdown-val serif" style="font-size:1.2rem;color:${gainColor}">${estGain<0?'('+fmt(-estGain)+')':'+'+fmt(estGain)}</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label fw6">ROI on Initial Investment</span>
+          <span class="breakdown-val" style="color:${gainColor}">${roi>=0?'+':''}${(roi*100).toFixed(1)}%</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ENTRY DETAIL & EDIT
+// ══════════════════════════════════════════════════════════════════
+const CAT_OPTIONS = `
+  <optgroup label="💰 Income">
+    <option value="Rental Income">Rental Income</option>
+    <option value="Other Income">Other Income</option>
+  </optgroup>
+  <optgroup label="🏦 Fixed Expenses">
+    <option value="Mortgage (P&I)">Mortgage (P&I)</option>
+    <option value="Property Tax">Property Tax</option>
+    <option value="Homeowners Insurance">Homeowners Insurance</option>
+    <option value="HOA Fee">HOA Fee</option>
+  </optgroup>
+  <optgroup label="⚡ Utilities">
+    <option value="Electricity">Electricity</option>
+    <option value="Gas/Heat">Gas / Heat</option>
+    <option value="Water &amp; Sewer">Water &amp; Sewer</option>
+    <option value="Trash">Trash</option>
+    <option value="Internet">Internet</option>
+  </optgroup>
+  <optgroup label="🔧 Maintenance">
+    <option value="Repairs/Maintenance">Repairs / Maintenance</option>
+    <option value="Capital Improvement">Capital Improvement</option>
+    <option value="Lawn/Snow">Lawn / Snow Removal</option>
+    <option value="Pest Control">Pest Control</option>
+  </optgroup>
+  <optgroup label="📋 Other">
+    <option value="Property Mgmt">Property Management</option>
+    <option value="Other Expense">Other Expense</option>
+  </optgroup>`;
+
+function openEntry(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  const m = catMeta(e.category);
+  const income = isIncome(e.category);
+  const recur = e.recur || 'none';
+  const recurOptions = ['none','monthly','quarterly','annually'];
+  const recurLabels  = ['One-time','Monthly','Quarterly','Annually'];
+
+  document.getElementById('entry-sheet-title').textContent = 'Edit Entry';
+  document.getElementById('entry-sheet-body').innerHTML = `
+    <div class="edit-form">
+      <!-- Amount hero -->
+      <div style="text-align:center;padding:8px 0 18px">
+        <div style="font-size:2rem;margin-bottom:6px">${m.icon}</div>
+        <div class="serif" style="font-size:1.8rem;color:${income?'var(--accent)':'var(--red)'}" id="edit-amount-display">${income?'+':'-'}${fmt(e.amount)}</div>
+        <div class="text-muted mt4">${e.date}</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-input" id="edit-date" value="${e.date}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount ($)</label>
+          <input type="number" inputmode="decimal" class="form-input" id="edit-amount"
+            value="${e.amount}" step="0.01" min="0"
+            oninput="document.getElementById('edit-amount-display').textContent='${income?'+':'-'}$'+parseFloat(this.value||0).toFixed(2)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="edit-category">${CAT_OPTIONS}</select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" class="form-input" id="edit-desc" value="${(e.desc||'').replace(/"/g,'&quot;')}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input type="text" class="form-input" id="edit-notes" value="${(e.notes||'').replace(/"/g,'&quot;')}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Recurring?</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${recurOptions.map((v,i)=>`<button type="button" class="recur-btn ${recur===v?'active':''}" data-val="${v}" onclick="setEditRecur(this)">${recurLabels[i]}</button>`).join('')}
+        </div>
+        <input type="hidden" id="edit-recur" value="${recur}">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary" style="flex:2" onclick="saveEntry('${e.id}')">💾 Save Changes</button>
+        <button class="btn btn-danger" style="flex:1;margin-top:0" onclick="deleteEntry('${e.id}')">🗑</button>
+      </div>
+    </div>
+  `;
+
+  // Set the category select value after injecting HTML
+  document.getElementById('edit-category').value = e.category;
+  document.getElementById('entry-overlay').classList.add('open');
+}
+
+function setEditRecur(btn) {
+  btn.closest('.form-group').querySelectorAll('.recur-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('edit-recur').value = btn.dataset.val;
+}
+
+function saveEntry(id) {
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx === -1) return;
+
+  const date   = document.getElementById('edit-date').value;
+  const amount = parseFloat(document.getElementById('edit-amount').value);
+  const cat    = document.getElementById('edit-category').value;
+  const desc   = document.getElementById('edit-desc').value.trim();
+  const notes  = document.getElementById('edit-notes').value.trim();
+  const recur  = document.getElementById('edit-recur').value || 'none';
+
+  if (!date)                              { showToast('⚠️ Please enter a date'); return; }
+  if (!amount || isNaN(amount) || amount <= 0) { showToast('⚠️ Please enter a valid amount'); return; }
+
+  entries[idx] = { ...entries[idx], date, category: cat, amount: parseFloat(amount.toFixed(2)), desc: desc || cat, notes, recur };
+  saveAll();
+  document.getElementById('entry-overlay').classList.remove('open');
+  showToast('✅ Entry updated');
+  renderLogRecent();
+  renderDashboard();
+  // Refresh history if visible
+  const histScreen = document.getElementById('screen-history');
+  if (histScreen.classList.contains('active')) renderHistoryYear();
+}
+
+function closeEntry(e) {
+  if (e && e.target !== document.getElementById('entry-overlay')) return;
+  document.getElementById('entry-overlay').classList.remove('open');
+}
+
+function deleteEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+  entries = entries.filter(e => e.id !== id);
+  saveAll();
+  document.getElementById('entry-overlay').classList.remove('open');
+  showToast('🗑 Entry deleted');
+  renderLogRecent();
+  renderDashboard();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('set-address').value        = settings.address || '';
+  document.getElementById('set-purchase-price').value = settings.purchasePrice || '';
+  document.getElementById('set-down').value           = settings.downPayment || '';
+  document.getElementById('set-closing-costs').value  = settings.closingCosts || '';
+  document.getElementById('set-other-initial').value  = settings.otherInitial || '';
+  document.getElementById('set-purchase-year').value  = settings.purchaseYear || '';
+  document.getElementById('set-gh-user').value        = ghConfig.user || '';
+  document.getElementById('set-gh-repo').value        = ghConfig.repo || '';
+  document.getElementById('set-gh-token').value       = ghConfig.token || '';
+  document.getElementById('gh-status').textContent    = '';
+  document.getElementById('settings-overlay').classList.add('open');
+}
+
+function closeSettings(e) {
+  if (e && e.target !== document.getElementById('settings-overlay')) return;
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
+function saveSettings() {
+  settings.address       = document.getElementById('set-address').value.trim();
+  settings.purchasePrice = parseFloat(document.getElementById('set-purchase-price').value) || 350000;
+  settings.downPayment   = parseFloat(document.getElementById('set-down').value) || 70000;
+  settings.closingCosts  = parseFloat(document.getElementById('set-closing-costs').value) || 8000;
+  settings.otherInitial  = parseFloat(document.getElementById('set-other-initial').value) || 5000;
+  settings.purchaseYear  = parseInt(document.getElementById('set-purchase-year').value) || new Date().getFullYear();
+  ghConfig.user  = document.getElementById('set-gh-user').value.trim();
+  ghConfig.repo  = document.getElementById('set-gh-repo').value.trim();
+  ghConfig.token = document.getElementById('set-gh-token').value.trim();
+  saveAll();
+  document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
+  document.getElementById('settings-overlay').classList.remove('open');
+  showToast('✅ Settings saved');
+  renderDashboard();
+}
+
+async function confirmClearData() {
+  if (confirm('⚠️ This will permanently delete ALL entries and settings. Are you sure?')) {
+    await DB.clear();
+    entries = []; settings = { address:'', purchasePrice:350000, downPayment:70000, closingCosts:8000, otherInitial:5000, purchaseYear:new Date().getFullYear() };
+    saveAll();
+    document.getElementById('settings-overlay').classList.remove('open');
+    showToast('🗑 All data cleared');
+    renderDashboard();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GITHUB SYNC
+// ══════════════════════════════════════════════════════════════════
+
+function ghDataPayload() {
+  // Everything we want to persist in the repo
+  return JSON.stringify({
+    _savedAt: new Date().toISOString(),
+    settings,
+    entries,
+    beSettings,
+    taxRate
+  }, null, 2);
+}
+
+async function githubSync(silent = false) {
+  const { user, repo, token } = ghConfig;
+  if (!user || !repo || !token) {
+    if (!silent) showToast('⚠️ Add GitHub settings first');
+    return false;
+  }
+
+  const statusEl = document.getElementById('gh-status');
+  if (statusEl) statusEl.textContent = '🔄 Syncing…';
+
+  const FILE_PATH = 'data.json';
+  const API = `https://api.github.com/repos/${user}/${repo}/contents/${FILE_PATH}`;
+  const headers = {
+    'Authorization': `token ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    // 1. Get current SHA (needed to update an existing file)
+    let sha = null;
+    const getRes = await fetch(API, { headers });
+    if (getRes.ok) {
+      const existing = await getRes.json();
+      sha = existing.sha;
+    } else if (getRes.status !== 404) {
+      throw new Error(`GitHub error ${getRes.status}`);
+    }
+
+    // 2. Push updated data
+    const content = btoa(unescape(encodeURIComponent(ghDataPayload())));
+    const body = {
+      message: `Data sync ${new Date().toISOString()}`,
+      content,
+      ...(sha ? { sha } : {})
+    };
+
+    const putRes = await fetch(API, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!putRes.ok) {
+      const err = await putRes.json();
+      throw new Error(err.message || `HTTP ${putRes.status}`);
+    }
+
+    const ts = new Date().toLocaleTimeString();
+    if (statusEl) statusEl.textContent = `✅ Synced at ${ts}`;
+    if (!silent) showToast('✅ Saved to GitHub!');
+    DB.save('pt_last_sync', Date.now());
+    return true;
+
+  } catch (err) {
+    console.error('GitHub sync failed:', err);
+    if (statusEl) statusEl.textContent = `❌ Sync failed: ${err.message}`;
+    if (!silent) showToast('❌ GitHub sync failed — check settings');
+    return false;
+  }
+}
+
+async function githubLoad() {
+  const { user, repo, token } = ghConfig;
+  if (!user || !repo || !token) return;
+
+  const FILE_PATH = 'data.json';
+  const API = `https://api.github.com/repos/${user}/${repo}/contents/${FILE_PATH}`;
+  const headers = {
+    'Authorization': `token ${token}`,
+    'Accept': 'application/vnd.github.v3+json'
+  };
+
+  try {
+    const res = await fetch(API, { headers });
+    if (!res.ok) return;
+    const file = await res.json();
+    // Decode base64 content
+    const json = JSON.parse(decodeURIComponent(escape(atob(file.content.replace(/\n/g,'')))));
+
+    // Merge: GitHub wins if its data is newer than local
+    const localSync = DB.load('pt_last_sync', 0);
+    const remoteTs  = json._savedAt ? new Date(json._savedAt).getTime() : 0;
+
+    if (remoteTs > localSync) {
+      if (json.settings)   { settings   = json.settings;   DB.save('pt_settings', settings); }
+      if (json.entries)    { entries    = json.entries;     DB.save('pt_entries', entries); }
+      if (json.beSettings) { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
+      if (json.taxRate !== undefined) { taxRate = json.taxRate; DB.save('pt_taxrate', taxRate); }
+      DB.save('pt_last_sync', remoteTs);
+      showToast('☁️ Data loaded from GitHub');
+      renderDashboard();
+    }
+  } catch (err) {
+    console.warn('GitHub load skipped:', err.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════════════════════
+function downloadApp() {
+  const html = document.documentElement.outerHTML;
+  const blob = new Blob(['<!DOCTYPE html>\n' + html], {type: 'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rental_tracker.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('⬇️ App downloaded!');
+}
+
+function exportXLSX() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ Still loading — try again in a moment');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const yr = new Date().getFullYear();
+
+  // ── Helper: style a header row (SheetJS write-only style support is limited,
+  //    but we set column widths and freeze panes which Google Sheets respects) ──
+
+  // ── SHEET 1: All Entries ──────────────────────────────────────────
+  const entryRows = [
+    ['Date', 'Category', 'Type', 'Description', 'Amount ($)', 'Notes']
+  ];
+  [...entries]
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .forEach(e => entryRows.push([
+      e.date,
+      e.category,
+      isIncome(e.category) ? 'Income' : 'Expense',
+      e.desc || '',
+      isIncome(e.category) ? e.amount : -e.amount,
+      e.notes || ''
+    ]));
+  const ws1 = XLSX.utils.aoa_to_sheet(entryRows);
+  ws1['!cols'] = [{wch:12},{wch:24},{wch:10},{wch:36},{wch:14},{wch:30}];
+  ws1['!freeze'] = {xSplit:0, ySplit:1};
+  XLSX.utils.book_append_sheet(wb, ws1, 'All Entries');
+
+  // ── SHEET 2: Yearly Summary ───────────────────────────────────────
+  const allYrs = allYears();
+  const summaryRows = [
+    ['Category', ...allYrs, 'Total']
+  ];
+
+  // Income categories
+  summaryRows.push(['── INCOME ──', ...allYrs.map(()=>''), '']);
+  const incomeCats = [...new Set(entries.filter(e=>isIncome(e.category)).map(e=>e.category))];
+  incomeCats.forEach(cat => {
+    const row = [cat];
+    let total = 0;
+    allYrs.forEach(y => {
+      const v = sumByFilter(e => getYear(e.date)===y && e.category===cat);
+      row.push(v); total += v;
+    });
+    row.push(total);
+    summaryRows.push(row);
+  });
+  // Income total row
+  const incTotalRow = ['TOTAL INCOME'];
+  let incGrandTotal = 0;
+  allYrs.forEach(y => {
+    const v = sumByFilter(e => getYear(e.date)===y && isIncome(e.category));
+    incTotalRow.push(v); incGrandTotal += v;
+  });
+  incTotalRow.push(incGrandTotal);
+  summaryRows.push(incTotalRow);
+
+  summaryRows.push(['', ...allYrs.map(()=>''), '']);
+
+  // Expense categories
+  summaryRows.push(['── EXPENSES ──', ...allYrs.map(()=>''), '']);
+  const expCats = [...new Set(entries.filter(e=>!isIncome(e.category)).map(e=>e.category))];
+  expCats.forEach(cat => {
+    const row = [cat];
+    let total = 0;
+    allYrs.forEach(y => {
+      const v = sumByFilter(e => getYear(e.date)===y && e.category===cat);
+      row.push(v); total += v;
+    });
+    row.push(total);
+    summaryRows.push(row);
+  });
+  // Expense total row
+  const expTotalRow = ['TOTAL EXPENSES'];
+  let expGrandTotal = 0;
+  allYrs.forEach(y => {
+    const v = sumByFilter(e => getYear(e.date)===y && !isIncome(e.category));
+    expTotalRow.push(v); expGrandTotal += v;
+  });
+  expTotalRow.push(expGrandTotal);
+  summaryRows.push(expTotalRow);
+
+  summaryRows.push(['', ...allYrs.map(()=>''), '']);
+
+  // Net row
+  const netRow = ['NET CASH FLOW'];
+  allYrs.forEach(y => {
+    const inc = sumByFilter(e => getYear(e.date)===y && isIncome(e.category));
+    const exp = sumByFilter(e => getYear(e.date)===y && !isIncome(e.category));
+    netRow.push(inc - exp);
+  });
+  netRow.push(incGrandTotal - expGrandTotal);
+  summaryRows.push(netRow);
+
+  // Tax estimate row
+  const rate = taxRate / 100;
+  const taxRow = [`EST. TAX OWED (${taxRate}% rate)`];
+  allYrs.forEach(y => {
+    const inc = sumByFilter(e => getYear(e.date)===y && isIncome(e.category));
+    const exp = sumByFilter(e => getYear(e.date)===y && !isIncome(e.category));
+    taxRow.push(Math.max(0, inc - exp) * rate);
+  });
+  const totalNet = incGrandTotal - expGrandTotal;
+  taxRow.push(Math.max(0, totalNet) * rate);
+  summaryRows.push(taxRow);
+
+  const ws2 = XLSX.utils.aoa_to_sheet(summaryRows);
+  ws2['!cols'] = [{wch:28}, ...allYrs.map(()=>({wch:14})), {wch:14}];
+  ws2['!freeze'] = {xSplit:1, ySplit:1};
+  XLSX.utils.book_append_sheet(wb, ws2, 'Yearly Summary');
+
+  // ── SHEET 3: Monthly Breakdown ────────────────────────────────────
+  const monthKeys = [...new Set(entries.map(e=>getMonthKey(e.date)).filter(Boolean))].sort().reverse();
+  const monthRows = [['Month', 'Income', 'Expenses', 'Net Cash Flow']];
+  monthKeys.forEach(mk => {
+    const inc = sumByFilter(e => getMonthKey(e.date)===mk && isIncome(e.category));
+    const exp = sumByFilter(e => getMonthKey(e.date)===mk && !isIncome(e.category));
+    monthRows.push([monthName(mk), inc, exp, inc-exp]);
+  });
+  // Totals
+  monthRows.push([
+    'TOTAL',
+    sumByFilter(e => isIncome(e.category)),
+    sumByFilter(e => !isIncome(e.category)),
+    sumByFilter(e => isIncome(e.category)) - sumByFilter(e => !isIncome(e.category))
+  ]);
+  const ws3 = XLSX.utils.aoa_to_sheet(monthRows);
+  ws3['!cols'] = [{wch:20},{wch:14},{wch:14},{wch:16}];
+  ws3['!freeze'] = {xSplit:0, ySplit:1};
+  XLSX.utils.book_append_sheet(wb, ws3, 'Monthly Breakdown');
+
+  // ── SHEET 4: Property Settings ────────────────────────────────────
+  const settingsRows = [
+    ['Property Tracker — Exported ' + now()],
+    [''],
+    ['PROPERTY DETAILS', ''],
+    ['Address',              settings.address || ''],
+    ['Purchase Price',       settings.purchasePrice],
+    ['Down Payment',         settings.downPayment],
+    ['Closing Costs',        settings.closingCosts],
+    ['Other Initial Costs',  settings.otherInitial],
+    ['Total Initial Investment', (settings.purchasePrice||0)-(settings.downPayment||0)+(settings.closingCosts||0)+(settings.otherInitial||0)],
+    ['Purchase Year',        settings.purchaseYear],
+    [''],
+    ['BREAK-EVEN ASSUMPTIONS', ''],
+    ['Years Owned at Sale',     beSettings.years],
+    ['Annual Appreciation %',   beSettings.appreciation + '%'],
+    ['Agent Commission %',      beSettings.commission + '%'],
+    ['Sale Closing Costs %',    beSettings.closing + '%'],
+    ['Loan Balance at Sale',    beSettings.loan],
+    [''],
+    ['TAX', ''],
+    ['Marginal Tax Rate',       taxRate + '%'],
+  ];
+  const ws4 = XLSX.utils.aoa_to_sheet(settingsRows);
+  ws4['!cols'] = [{wch:30},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Settings');
+
+  // ── Write & download ─────────────────────────────────────────────
+  const filename = `property_tracker_${now()}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('📊 Spreadsheet exported!');
+}
+
+function exportData() {
+  const csv = ['Date,Category,Description,Amount,Notes',
+    ...entries.map(e => `${e.date},"${e.category}","${e.desc}",${e.amount},"${e.notes||''}"`)
+  ].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'property_tracker_export.csv';
+  a.click();
+  showToast('📤 Export downloaded');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  // Show loading state briefly
+  document.getElementById('stat-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--ink3)">Loading…</div>';
+
+  // Init IndexedDB and load state
+  await DB.init();
+  loadState();
+
+  // Set today's date as default in bill form
+  document.getElementById('bill-date').value = now();
+
+  // Update topbar
+  document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
+
+  // Render initial screen
+  renderDashboard();
+
+  // Load latest data from GitHub (if configured) — runs in background
+  if (ghConfig.user && ghConfig.repo && ghConfig.token) {
+    githubLoad();
+  }
+});
+
+// Save to GitHub at end of session (page hide = tab close, app switch, etc.)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && ghConfig.user && ghConfig.repo && ghConfig.token) {
+    // Use sendBeacon-style fire-and-forget; githubSync handles its own fetch
+    githubSync(true);
+  }
+});
+
+// Also catch hard closes on desktop
+window.addEventListener('beforeunload', () => {
+  if (ghConfig.user && ghConfig.repo && ghConfig.token) {
+    githubSync(true);
+  }
+});
+</script>
+</body>
+</html>
