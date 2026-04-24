@@ -1397,15 +1397,21 @@ function deleteEntry(id) {
 }
 
 // ── Silent background push — called after every data change ──────
-// Runs async in background; updates sync dot when done; never blocks the UI
 function pushToGitHub() {
-  if (!ghConfig.user || !ghConfig.repo || !ghConfig.token) return;
+  if (!ghConfig.user || !ghConfig.repo || !ghConfig.token) {
+    console.log('[PT] pushToGitHub: skipped — no credentials');
+    return;
+  }
+  console.log('[PT] pushToGitHub: pushing…');
   githubSync(true).then(ok => {
+    console.log('[PT] pushToGitHub result:', ok);
     const dot = document.getElementById('sync-dot');
     if (dot) {
       dot.style.display = 'inline-block';
       dot.style.background = ok ? '#7ecfa4' : '#e57373';
-      dot.title = ok ? `Synced ${new Date().toLocaleTimeString()}` : 'Sync failed — will retry on close';
+      dot.title = ok
+        ? `Synced ${new Date().toLocaleTimeString()}`
+        : 'Sync failed — check connection';
     }
   });
 }
@@ -1585,8 +1591,8 @@ async function githubSync(silent = false) {
     const ts = new Date().toLocaleTimeString();
     DB.save('pt_last_sync', Date.now());
     _dirty = false;
-    // Cache sha for keepalive use
-    try { const f = await putRes.json(); if (f.content?.sha) _cachedSha = f.content.sha; } catch {}
+    // Cache sha from response so keepalive push can skip the GET next time
+    try { const f = await putRes.clone().json(); if (f.content?.sha) _cachedSha = f.content.sha; } catch {}
     const dot = document.getElementById('sync-dot');
     if (dot) { dot.style.display = 'inline-block'; dot.title = `Synced ${ts}`; }
     ghLog(`✅ Synced at ${ts}\nFile: data.json in ${user}/${repo}`);
@@ -1943,26 +1949,6 @@ async function githubSyncKeepalive() {
     // Silent — we're closing, nothing we can do
   }
 }
-
-// Keep sha cache fresh whenever we do a normal sync
-const _origGithubSync = githubSync;
-githubSync = async function(silent = false) {
-  const result = await _origGithubSync(silent);
-  // After any successful sync, refresh cached sha for keepalive use
-  if (result) {
-    try {
-      const { user, repo, token } = ghConfig;
-      if (user && repo && token) {
-        const r = await fetch(
-          `https://api.github.com/repos/${user}/${repo}/contents/data.json`,
-          { headers: ghHeaders(token) }
-        );
-        if (r.ok) { const f = await r.json(); _cachedSha = f.sha; }
-      }
-    } catch {}
-  }
-  return result;
-};
 
 // On visibility hidden: use keepalive push (survives page close on mobile)
 document.addEventListener('visibilitychange', () => {
