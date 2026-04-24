@@ -560,7 +560,11 @@
       <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
       <div class="divider" style="margin-top:20px"></div>
       <div class="section-label">GitHub Data Sync</div>
-      <p class="text-muted" style="margin-bottom:10px;line-height:1.5;font-size:.8rem">Data is saved as <code>data.json</code> in your repo. Use <b>Test Connection</b> after entering credentials to verify everything works.</p>
+      <p class="text-muted" style="margin-bottom:10px;line-height:1.6;font-size:.8rem">
+        Enter your credentials and tap <b>🔌 Test</b> to verify, then <b>💾 Save Credentials</b>.<br>
+        On a <b>new device</b>: save credentials first, then tap <b>☁️ Pull from GitHub</b> to load your data.<br>
+        GitHub is the source of truth — your token stays on this device only.
+      </p>
       <div class="form-group">
         <label class="form-label">GitHub Username</label>
         <input type="text" class="form-input" id="set-gh-user" placeholder="yourusername" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -577,8 +581,12 @@
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" style="flex:2;min-width:140px" onclick="saveSettingsAndSync()">💾 Save &amp; Sync Now</button>
-        <button class="btn btn-ghost" style="flex:1;margin-top:0;min-width:100px" onclick="githubTest()">🔌 Test</button>
+        <button class="btn btn-primary" style="flex:1;min-width:120px" onclick="saveCredentials()">💾 Save Credentials</button>
+        <button class="btn btn-ghost" style="flex:1;margin-top:0;min-width:80px" onclick="githubTest()">🔌 Test</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-ghost" style="flex:1;margin-top:0;min-width:120px" onclick="githubPull()">☁️ Pull from GitHub</button>
+        <button class="btn btn-ghost" style="flex:1;margin-top:0;min-width:120px" onclick="githubSync()">📤 Push to GitHub</button>
       </div>
       <div id="gh-status" style="margin-top:12px;font-size:.8rem;line-height:1.6;background:var(--paper);border-radius:8px;padding:10px 12px;display:none;word-break:break-all;font-family:monospace;white-space:pre-wrap"></div>
       <div class="divider" style="margin-top:16px"></div>
@@ -1559,6 +1567,9 @@ async function githubSync(silent = false) {
 
     const ts = new Date().toLocaleTimeString();
     DB.save('pt_last_sync', Date.now());
+    _dirty = false;
+    // Cache sha for keepalive use
+    try { const f = await putRes.json(); if (f.content?.sha) _cachedSha = f.content.sha; } catch {}
     const dot = document.getElementById('sync-dot');
     if (dot) { dot.style.display = 'inline-block'; dot.title = `Synced ${ts}`; }
     ghLog(`✅ Synced at ${ts}\nFile: data.json in ${user}/${repo}`);
@@ -1573,7 +1584,7 @@ async function githubSync(silent = false) {
   }
 }
 
-async function githubLoad() {
+async function githubLoad(verbose = false) {
   const { user, repo, token } = ghConfig;
   if (!user || !repo || !token) return;
 
@@ -1581,51 +1592,68 @@ async function githubLoad() {
   try {
     const res = await fetch(API, { headers: ghHeaders(token) });
     if (!res.ok) {
-      if (res.status === 404) return; // no file yet
+      if (res.status === 404) {
+        if (verbose) ghLog('ℹ️ No data.json found in repo yet.\nThis is normal if you haven\'t pushed data from your first device yet.\n\nGo to your first device and tap 📤 Push to GitHub, then come back and pull.', false);
+        return;
+      }
       throw new Error(`HTTP ${res.status}`);
     }
     const file = await res.json();
     const json = JSON.parse(decodeURIComponent(escape(atob(file.content.replace(/\n/g,'')))));
 
+    // Load all data fields — GitHub is the source of truth
+    // ghConfig intentionally NOT overwritten — token stays local only
     if (json.settings)               { settings   = json.settings;   DB.save('pt_settings', settings); }
     if (Array.isArray(json.entries)) { entries    = json.entries;     DB.save('pt_entries', entries); }
     if (json.beSettings)             { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
     if (json.taxRate !== undefined)  { taxRate    = json.taxRate;     DB.save('pt_taxrate', taxRate); }
-
     DB.save('pt_last_sync', Date.now());
+
     document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
-    showToast('☁️ Data loaded from GitHub');
+    const entryCount = Array.isArray(json.entries) ? json.entries.length : 0;
+    const savedAt = json._savedAt ? new Date(json._savedAt).toLocaleString() : 'unknown';
+
+    if (verbose) ghLog(`✅ Data loaded from GitHub!\nEntries: ${entryCount}\nLast saved: ${savedAt}\n\nYour dashboard has been updated.`);
+    else showToast(`☁️ Loaded ${entryCount} entries from GitHub`);
+
     renderDashboard();
   } catch (err) {
     console.warn('GitHub load error:', err.message);
-    showToast('⚠️ Could not load from GitHub: ' + err.message);
+    if (verbose) ghLog(`❌ Pull failed: ${err.message}`, true);
+    else showToast('⚠️ Could not load from GitHub');
   }
 }
 
 // Save settings AND immediately sync so the user sees the result
-async function saveSettingsAndSync() {
-  // Read form values first
+// Save GitHub credentials to local storage ONLY — never touches GitHub data
+function saveCredentials() {
   const user  = document.getElementById('set-gh-user')?.value.trim()  || '';
   const repo  = document.getElementById('set-gh-repo')?.value.trim()  || '';
   const token = document.getElementById('set-gh-token')?.value.trim() || '';
 
-  settings.address       = document.getElementById('set-address')?.value.trim() || '';
-  settings.purchasePrice = parseFloat(document.getElementById('set-purchase-price')?.value) || 350000;
-  settings.downPayment   = parseFloat(document.getElementById('set-down')?.value) || 70000;
-  settings.closingCosts  = parseFloat(document.getElementById('set-closing-costs')?.value) || 8000;
-  settings.otherInitial  = parseFloat(document.getElementById('set-other-initial')?.value) || 5000;
-  settings.purchaseYear  = parseInt(document.getElementById('set-purchase-year')?.value) || new Date().getFullYear();
-  ghConfig = { user, repo, token };
-  saveAll();
-
-  document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
-
   if (!user || !repo || !token) {
-    ghLog('⚠️ Settings saved locally. Add GitHub credentials to enable cloud sync.', false);
-    showToast('✅ Settings saved');
-    return;
+    ghLog('⚠️ Fill in all three fields before saving.', true); return;
   }
-  await githubSync(false);
+
+  ghConfig = { user, repo, token };
+  DB.save('pt_gh', ghConfig);
+  ghLog(`✅ Credentials saved locally.\nUsername: ${user}\nRepo: ${repo}\nToken: ${'•'.repeat(8)}${token.slice(-4)}\n\nNow tap ☁️ Pull from GitHub to load your data, or 🔌 Test to verify the connection first.`);
+  showToast('✅ Credentials saved');
+}
+
+// Pull from GitHub — ONLY loads data, never pushes. Safe to use on a new device.
+async function githubPull() {
+  const { user, repo, token } = ghConfig;
+  if (!user || !repo || !token) {
+    ghLog('⚠️ Save your credentials first.', true); return;
+  }
+  ghLog('☁️ Pulling data from GitHub…');
+  await githubLoad(true); // true = called explicitly, show detailed status
+}
+
+// Kept for backward compatibility — called by auto-save on visibility change
+async function saveSettingsAndSync() {
+  saveCredentials();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1647,18 +1675,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// Auto-save to GitHub whenever the app is hidden (tab switch, home button, close)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && ghConfig.user && ghConfig.repo && ghConfig.token) {
-    githubSync(true);
-  }
-});
-
-window.addEventListener('beforeunload', () => {
-  if (ghConfig.user && ghConfig.repo && ghConfig.token) {
-    githubSync(true);
-  }
-});
 // ══════════════════════════════════════════════════════════════════
 // EXPORT
 // ══════════════════════════════════════════════════════════════════
@@ -1872,20 +1888,94 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// Auto-save to GitHub whenever app goes to background (tab switch, home button, lock screen)
+// ══════════════════════════════════════════════════════════════════
+// RELIABLE AUTO-PUSH ON CLOSE / TAB SWITCH
+// ══════════════════════════════════════════════════════════════════
+
+// Track whether data has changed since last push — avoids unnecessary pushes
+let _dirty = false;
+function markDirty() { _dirty = true; }
+
+// Patch saveAll to mark dirty every time data changes
+const _origSaveAll = saveAll;
+saveAll = function() { _origSaveAll(); markDirty(); };
+
+// Fast keepalive push — uses fetch keepalive:true so the browser finishes
+// the request even after the page is unloaded. Two-step: GET sha, then PUT.
+// The sha is cached so we don't need a round-trip on every close.
+let _cachedSha = null;
+
+async function githubSyncKeepalive() {
+  const { user, repo, token } = ghConfig;
+  if (!user || !repo || !token || !_dirty) return;
+
+  const API = `https://api.github.com/repos/${user}/${repo}/contents/data.json`;
+  const headers = ghHeaders(token);
+  const content = btoa(unescape(encodeURIComponent(ghDataPayload())));
+  const body = JSON.stringify({
+    message: `Auto-sync ${new Date().toISOString()}`,
+    content,
+    ...(_cachedSha ? { sha: _cachedSha } : {})
+  });
+
+  try {
+    // keepalive: true tells the browser to complete this even after page close
+    await fetch(API, { method: 'PUT', headers, body, keepalive: true });
+    _dirty = false;
+  } catch {
+    // Silent — we're closing, nothing we can do
+  }
+}
+
+// Keep sha cache fresh whenever we do a normal sync
+const _origGithubSync = githubSync;
+githubSync = async function(silent = false) {
+  const result = await _origGithubSync(silent);
+  // After any successful sync, refresh cached sha for keepalive use
+  if (result) {
+    try {
+      const { user, repo, token } = ghConfig;
+      if (user && repo && token) {
+        const r = await fetch(
+          `https://api.github.com/repos/${user}/${repo}/contents/data.json`,
+          { headers: ghHeaders(token) }
+        );
+        if (r.ok) { const f = await r.json(); _cachedSha = f.sha; }
+      }
+    } catch {}
+  }
+  return result;
+};
+
+// On visibility hidden: use keepalive push (survives page close on mobile)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' &&
       ghConfig.user && ghConfig.repo && ghConfig.token) {
-    githubSync(true);
+    githubSyncKeepalive();
   }
 });
 
-// Catch browser/desktop close
-window.addEventListener('beforeunload', () => {
-  if (ghConfig.user && ghConfig.repo && ghConfig.token) {
-    githubSync(true);
+// On visibility visible (returning to tab): pull latest in case another device pushed
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' &&
+      ghConfig.user && ghConfig.repo && ghConfig.token) {
+    githubLoad();
   }
 });
+
+// Desktop fallback — beforeunload fires synchronously before close
+window.addEventListener('beforeunload', () => {
+  if (ghConfig.user && ghConfig.repo && ghConfig.token && _dirty) {
+    githubSyncKeepalive();
+  }
+});
+
+// Also push every 5 minutes while the app is open, in case close events are missed
+setInterval(() => {
+  if (ghConfig.user && ghConfig.repo && ghConfig.token && _dirty) {
+    githubSync(true).then(() => { _dirty = false; });
+  }
+}, 5 * 60 * 1000);
 </script>
 </body>
 </html>
