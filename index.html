@@ -491,10 +491,9 @@
           <input type="number" inputmode="decimal" class="form-input" id="be-closing" placeholder="1" step="0.1" oninput="renderBreakeven()">
         </div>
       </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">Estimated Loan Balance at Sale ($)</label>
-        <input type="number" inputmode="decimal" class="form-input" id="be-loan" placeholder="280000" oninput="renderBreakeven()">
-      </div>
+      <p class="text-muted" style="margin-top:4px;font-size:.78rem;line-height:1.5">
+        Loan balance at sale is estimated automatically using your interest rate and loan start date from Settings (30-yr fixed amortization).
+      </p>
     </div>
   </div>
 
@@ -555,6 +554,16 @@
         <div class="form-group">
           <label class="form-label">Purchase Year</label>
           <input type="number" inputmode="numeric" class="form-input" id="set-purchase-year" placeholder="2024">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Interest Rate (%)</label>
+          <input type="number" inputmode="decimal" class="form-input" id="set-interest-rate" placeholder="6.5" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Loan Start Date</label>
+          <input type="month" class="form-input" id="set-loan-start" placeholder="2024-01">
         </div>
       </div>
       <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
@@ -760,9 +769,9 @@ const DB = (() => {
 let settings, entries, beSettings, taxRate, ghConfig;
 
 function loadState() {
-  settings   = DB.load('pt_settings', { address:'', purchasePrice:350000, downPayment:70000, closingCosts:8000, otherInitial:5000, purchaseYear:new Date().getFullYear() });
+  settings   = DB.load('pt_settings', { address:'', purchasePrice:350000, downPayment:70000, closingCosts:8000, otherInitial:5000, purchaseYear:new Date().getFullYear(), interestRate:6.5, loanStart:'' });
   entries    = DB.load('pt_entries', []);
-  beSettings = DB.load('pt_be', { years:5, appreciation:3, commission:6, closing:1, loan:280000 });
+  beSettings = DB.load('pt_be', { years:5, appreciation:3, commission:6, closing:1 });
   taxRate    = DB.load('pt_taxrate', 22);
   ghConfig   = DB.load('pt_gh', { user:'', repo:'', token:'' });
 }
@@ -1167,43 +1176,113 @@ function renderTaxYear() {
 
 // ══════════════════════════════════════════════════════════════════
 // BREAK-EVEN
+// ── Amortization helper ──────────────────────────────────────────
+// Returns remaining principal after `monthsPaid` payments on a 30-yr fixed loan
+function calcRemainingBalance(principal, annualRatePct, monthsPaid) {
+  if (!principal || principal <= 0) return 0;
+  if (!annualRatePct || annualRatePct <= 0) return Math.max(0, principal - (principal / 360) * monthsPaid);
+  const r = (annualRatePct / 100) / 12;          // monthly rate
+  const n = 360;                                   // 30 years × 12
+  const pmt = principal * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1); // monthly payment
+  // Balance after k payments: P*(1+r)^k - pmt*((1+r)^k - 1)/r
+  const k = Math.min(monthsPaid, n);
+  const balance = principal * Math.pow(1+r, k) - pmt * (Math.pow(1+r, k) - 1) / r;
+  return Math.max(0, balance);
+}
+
+// Returns months elapsed from loanStart (YYYY-MM) to a future date (also YYYY-MM)
+function monthsBetween(startYM, endYM) {
+  if (!startYM) return 0;
+  const [sy, sm] = startYM.split('-').map(Number);
+  const [ey, em] = endYM.split('-').map(Number);
+  return Math.max(0, (ey - sy) * 12 + (em - sm));
+}
+
 // ══════════════════════════════════════════════════════════════════
 function renderBreakeven() {
-  // Read inputs (or defaults)
   const get = (id, def) => parseFloat(document.getElementById(id)?.value) || def;
 
   const years       = get('be-years', beSettings.years);
   const appreciation= get('be-appreciation', beSettings.appreciation) / 100;
   const commission  = get('be-commission', beSettings.commission) / 100;
   const closingPct  = get('be-closing', beSettings.closing) / 100;
-  const loan        = get('be-loan', beSettings.loan);
 
   // Populate inputs if empty
-  ['years','appreciation','commission','closing','loan'].forEach((k,i) => {
-    const el = document.getElementById('be-'+['years','appreciation','commission','closing','loan'][i]);
-    if (el && !el.value) el.value = [years, appreciation*100, commission*100, closingPct*100, loan][i];
+  const fields = ['years','appreciation','commission','closing'];
+  fields.forEach((k, i) => {
+    const el = document.getElementById('be-' + k);
+    if (el && !el.value) el.value = [years, appreciation*100, commission*100, closingPct*100][i];
   });
 
-  beSettings = { years, appreciation: appreciation*100, commission: commission*100, closing: closingPct*100, loan };
+  beSettings = { years, appreciation: appreciation*100, commission: commission*100, closing: closingPct*100 };
   DB.save('pt_be', beSettings);
 
-  const pp = settings.purchasePrice || 350000;
-  const initialInvestment = (settings.downPayment||70000) + (settings.closingCosts||8000) + (settings.otherInitial||5000);
+  // ── Amortization-based loan balance ──────────────────────────────
+  const loanPrincipal  = (settings.purchasePrice || 350000) - (settings.downPayment || 70000);
+  const interestRate   = settings.interestRate || 6.5;
+  const loanStart      = settings.loanStart || '';
 
+  // Months paid so far (from loan start to today)
+  const todayYM = now().slice(0, 7); // "YYYY-MM"
+  const monthsPaidNow = monthsBetween(loanStart, todayYM);
+
+  // Months paid at time of sale (loan start → sale date)
+  // Sale date = loan start + (months already paid) + (years * 12 more)
+  const monthsPaidAtSale = monthsPaidNow + Math.round(years * 12);
+
+  const currentBalance  = calcRemainingBalance(loanPrincipal, interestRate, monthsPaidNow);
+  const balanceAtSale   = calcRemainingBalance(loanPrincipal, interestRate, monthsPaidAtSale);
+
+  // Monthly payment for display
+  const r = (interestRate / 100) / 12;
+  const n = 360;
+  const monthlyPayment = r > 0
+    ? loanPrincipal * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1)
+    : loanPrincipal / n;
+
+  const missingLoanInfo = !loanStart || !settings.purchasePrice;
+
+  // ── Cost basis ────────────────────────────────────────────────────
+  const pp              = settings.purchasePrice || 350000;
+  const initialInvestment = (settings.downPayment||70000) + (settings.closingCosts||8000) + (settings.otherInitial||5000);
   const totalBillsPaid  = sumByFilter(e => !isIncome(e.category));
   const totalRentRcvd   = sumByFilter(e => isIncome(e.category));
-  const totalMaint      = sumByFilter(e => ['Repairs/Maintenance','Capital Improvement'].includes(e.category));
   const netCostBasis    = initialInvestment + totalBillsPaid - totalRentRcvd;
 
-  const breakEvenRaw    = netCostBasis + loan;
-  const breakEvenSale   = (netCostBasis + loan) / (1 - commission - closingPct);
+  const breakEvenSale   = (netCostBasis + balanceAtSale) / (1 - commission - closingPct);
   const estMarketValue  = pp * Math.pow(1 + appreciation, years);
   const estGain         = estMarketValue - breakEvenSale;
   const roi             = initialInvestment > 0 ? estGain / initialInvestment : 0;
+  const gainColor       = estGain >= 0 ? 'var(--accent)' : 'var(--red)';
 
-  const gainColor = estGain >= 0 ? 'var(--accent)' : 'var(--red)';
+  const loanWarning = missingLoanInfo
+    ? `<div class="card" style="margin-bottom:12px">
+        <div class="card-body">
+          <p class="text-muted" style="font-size:.82rem;line-height:1.6">
+            ⚠️ Enter your <b>Loan Start Date</b> and <b>Interest Rate</b> in ⚙️ Settings for an accurate amortization calculation.
+            Using estimated values for now.
+          </p>
+        </div>
+      </div>` : '';
 
   document.getElementById('breakeven-results').innerHTML = `
+    ${loanWarning}
+
+    <div class="section-label">Loan Amortization</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="breakdown-row"><span class="breakdown-label">Original Loan Amount</span><span class="breakdown-val">${fmt(loanPrincipal)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Interest Rate (30-yr fixed)</span><span class="breakdown-val">${interestRate.toFixed(2)}%</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Monthly Payment (P&I)</span><span class="breakdown-val">${fmt(monthlyPayment)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Payments Made So Far</span><span class="breakdown-val">${monthsPaidNow} mo${loanStart ? '' : ' (est.)'}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Current Balance (est.)</span><span class="breakdown-val">${fmt(currentBalance)}</span></div>
+        <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
+          <span class="breakdown-label fw6">Balance at Sale (+${years} yrs)</span>
+          <span class="breakdown-val serif" style="font-size:1.1rem">${fmt(balanceAtSale)}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="section-label">Cost Basis</div>
     <div class="card">
       <div class="card-body">
@@ -1221,7 +1300,7 @@ function renderBreakeven() {
     <div class="card">
       <div class="card-body">
         <div class="breakdown-row"><span class="breakdown-label">Net Cost Basis</span><span class="breakdown-val">${fmt(netCostBasis)}</span></div>
-        <div class="breakdown-row"><span class="breakdown-label">Loan Balance at Sale</span><span class="breakdown-val">${fmt(loan)}</span></div>
+        <div class="breakdown-row"><span class="breakdown-label">Est. Loan Balance at Sale</span><span class="breakdown-val">${fmt(balanceAtSale)}</span></div>
         <div class="breakdown-row"><span class="breakdown-label">Selling Costs (${((commission+closingPct)*100).toFixed(1)}%)</span><span class="breakdown-val">accounted in price</span></div>
         <div class="breakdown-row" style="border-top:2px solid var(--ink);padding-top:12px">
           <span class="breakdown-label fw6">Break-Even Sale Price</span>
@@ -1426,6 +1505,8 @@ function openSettings() {
   document.getElementById('set-closing-costs').value  = settings.closingCosts || '';
   document.getElementById('set-other-initial').value  = settings.otherInitial || '';
   document.getElementById('set-purchase-year').value  = settings.purchaseYear || '';
+  document.getElementById('set-interest-rate').value  = settings.interestRate || '';
+  document.getElementById('set-loan-start').value     = settings.loanStart || '';
   document.getElementById('set-gh-user').value        = ghConfig.user || '';
   document.getElementById('set-gh-repo').value        = ghConfig.repo || '';
   document.getElementById('set-gh-token').value       = ghConfig.token || '';
@@ -1447,6 +1528,8 @@ function saveSettings() {
   settings.closingCosts  = parseFloat(document.getElementById('set-closing-costs').value) || 8000;
   settings.otherInitial  = parseFloat(document.getElementById('set-other-initial').value) || 5000;
   settings.purchaseYear  = parseInt(document.getElementById('set-purchase-year').value) || new Date().getFullYear();
+  settings.interestRate  = parseFloat(document.getElementById('set-interest-rate').value) || 6.5;
+  settings.loanStart     = document.getElementById('set-loan-start').value || '';
   saveAll();
   document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
   document.getElementById('settings-overlay').classList.remove('open');
