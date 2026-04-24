@@ -1,0 +1,20 @@
+{
+  "_savedAt": "2026-04-24T03:08:54.220Z",
+  "settings": {
+    "address": "",
+    "purchasePrice": 350000,
+    "downPayment": 70000,
+    "closingCosts": 8000,
+    "otherInitial": 5000,
+    "purchaseYear": 2026
+  },
+  "entries": [],
+  "beSettings": {
+    "years": 5,
+    "appreciation": 3,
+    "commission": 6,
+    "closing": 1,
+    "loan": 280000
+  },
+  "taxRate": 22
+}
