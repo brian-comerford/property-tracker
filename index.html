@@ -1719,161 +1719,207 @@ function exportXLSX() {
   }
 
   const wb = XLSX.utils.book_new();
-  const yr = new Date().getFullYear();
 
-  // ── Helper: style a header row (SheetJS write-only style support is limited,
-  //    but we set column widths and freeze panes which Google Sheets respects) ──
+  // ── Helpers ───────────────────────────────────────────────────────
+  const allYrs  = allYears();
+  const allCats = [...new Set(entries.map(e => e.category))].sort();
+  const incomeCats = allCats.filter(c => isIncome(c));
+  const expCats    = allCats.filter(c => !isIncome(c));
 
-  // ── SHEET 1: All Entries ──────────────────────────────────────────
+  // All month keys that have at least one entry, newest first
+  const allMonthKeys = [...new Set(
+    entries.map(e => getMonthKey(e.date)).filter(Boolean)
+  )].sort().reverse();
+
+  // Safe sheet name: max 31 chars, no special chars
+  function safeSheetName(s) {
+    return s.replace(/[:\\\/\?\*\[\]]/g, '').slice(0, 31);
+  }
+
+  // ── SHEET 1: All Entries (sorted by date, newest first) ───────────
   const entryRows = [
-    ['Date', 'Category', 'Type', 'Description', 'Amount ($)', 'Notes']
+    ['Date', 'Category', 'Type', 'Description', 'Amount ($)', 'Recurring', 'Notes']
   ];
   [...entries]
-    .sort((a,b) => b.date.localeCompare(a.date))
+    .sort((a, b) => b.date.localeCompare(a.date))
     .forEach(e => entryRows.push([
       e.date,
       e.category,
       isIncome(e.category) ? 'Income' : 'Expense',
       e.desc || '',
       isIncome(e.category) ? e.amount : -e.amount,
+      e.recur && e.recur !== 'none' ? recurLabel(e.recur) : '',
       e.notes || ''
     ]));
   const ws1 = XLSX.utils.aoa_to_sheet(entryRows);
-  ws1['!cols'] = [{wch:12},{wch:24},{wch:10},{wch:36},{wch:14},{wch:30}];
+  ws1['!cols'] = [{wch:12},{wch:24},{wch:10},{wch:36},{wch:14},{wch:12},{wch:30}];
   ws1['!freeze'] = {xSplit:0, ySplit:1};
   XLSX.utils.book_append_sheet(wb, ws1, 'All Entries');
 
-  // ── SHEET 2: Yearly Summary ───────────────────────────────────────
-  const allYrs = allYears();
-  const summaryRows = [
-    ['Category', ...allYrs, 'Total']
-  ];
+  // ── SHEET 2: Annual Summary by Category ───────────────────────────
+  // Rows = categories, Columns = years + total
+  const summaryRows = [];
+  summaryRows.push(['Annual Summary — All Years', ...allYrs.map(() => ''), '']);
+  summaryRows.push(['Category', ...allYrs, 'All-Time Total']);
 
-  // Income categories
-  summaryRows.push(['── INCOME ──', ...allYrs.map(()=>''), '']);
-  const incomeCats = [...new Set(entries.filter(e=>isIncome(e.category)).map(e=>e.category))];
+  // Income section
+  summaryRows.push(['', ...allYrs.map(() => ''), '']); // spacer
+  summaryRows.push(['INCOME', ...allYrs.map(() => ''), '']);
   incomeCats.forEach(cat => {
     const row = [cat];
     let total = 0;
     allYrs.forEach(y => {
-      const v = sumByFilter(e => getYear(e.date)===y && e.category===cat);
+      const v = sumByFilter(e => getYear(e.date) === y && e.category === cat);
       row.push(v); total += v;
     });
     row.push(total);
     summaryRows.push(row);
   });
-  // Income total row
-  const incTotalRow = ['TOTAL INCOME'];
-  let incGrandTotal = 0;
-  allYrs.forEach(y => {
-    const v = sumByFilter(e => getYear(e.date)===y && isIncome(e.category));
-    incTotalRow.push(v); incGrandTotal += v;
-  });
-  incTotalRow.push(incGrandTotal);
-  summaryRows.push(incTotalRow);
+  const incTotals = allYrs.map(y => sumByFilter(e => getYear(e.date) === y && isIncome(e.category)));
+  const incGrand  = incTotals.reduce((s, v) => s + v, 0);
+  summaryRows.push(['TOTAL INCOME', ...incTotals, incGrand]);
 
-  summaryRows.push(['', ...allYrs.map(()=>''), '']);
-
-  // Expense categories
-  summaryRows.push(['── EXPENSES ──', ...allYrs.map(()=>''), '']);
-  const expCats = [...new Set(entries.filter(e=>!isIncome(e.category)).map(e=>e.category))];
+  // Expense section
+  summaryRows.push(['', ...allYrs.map(() => ''), '']); // spacer
+  summaryRows.push(['EXPENSES', ...allYrs.map(() => ''), '']);
   expCats.forEach(cat => {
     const row = [cat];
     let total = 0;
     allYrs.forEach(y => {
-      const v = sumByFilter(e => getYear(e.date)===y && e.category===cat);
+      const v = sumByFilter(e => getYear(e.date) === y && e.category === cat);
       row.push(v); total += v;
     });
     row.push(total);
     summaryRows.push(row);
   });
-  // Expense total row
-  const expTotalRow = ['TOTAL EXPENSES'];
-  let expGrandTotal = 0;
-  allYrs.forEach(y => {
-    const v = sumByFilter(e => getYear(e.date)===y && !isIncome(e.category));
-    expTotalRow.push(v); expGrandTotal += v;
-  });
-  expTotalRow.push(expGrandTotal);
-  summaryRows.push(expTotalRow);
+  const expTotals = allYrs.map(y => sumByFilter(e => getYear(e.date) === y && !isIncome(e.category)));
+  const expGrand  = expTotals.reduce((s, v) => s + v, 0);
+  summaryRows.push(['TOTAL EXPENSES', ...expTotals, expGrand]);
 
-  summaryRows.push(['', ...allYrs.map(()=>''), '']);
-
-  // Net row
-  const netRow = ['NET CASH FLOW'];
-  allYrs.forEach(y => {
-    const inc = sumByFilter(e => getYear(e.date)===y && isIncome(e.category));
-    const exp = sumByFilter(e => getYear(e.date)===y && !isIncome(e.category));
-    netRow.push(inc - exp);
-  });
-  netRow.push(incGrandTotal - expGrandTotal);
-  summaryRows.push(netRow);
-
-  // Tax estimate row
+  // Net & tax rows
+  summaryRows.push(['', ...allYrs.map(() => ''), '']);
+  summaryRows.push([
+    'NET CASH FLOW',
+    ...allYrs.map((y, i) => incTotals[i] - expTotals[i]),
+    incGrand - expGrand
+  ]);
   const rate = taxRate / 100;
-  const taxRow = [`EST. TAX OWED (${taxRate}% rate)`];
-  allYrs.forEach(y => {
-    const inc = sumByFilter(e => getYear(e.date)===y && isIncome(e.category));
-    const exp = sumByFilter(e => getYear(e.date)===y && !isIncome(e.category));
-    taxRow.push(Math.max(0, inc - exp) * rate);
-  });
-  const totalNet = incGrandTotal - expGrandTotal;
-  taxRow.push(Math.max(0, totalNet) * rate);
-  summaryRows.push(taxRow);
+  summaryRows.push([
+    `EST. TAX OWED (${taxRate}%)`,
+    ...allYrs.map((y, i) => Math.max(0, incTotals[i] - expTotals[i]) * rate),
+    Math.max(0, incGrand - expGrand) * rate
+  ]);
 
   const ws2 = XLSX.utils.aoa_to_sheet(summaryRows);
-  ws2['!cols'] = [{wch:28}, ...allYrs.map(()=>({wch:14})), {wch:14}];
-  ws2['!freeze'] = {xSplit:1, ySplit:1};
-  XLSX.utils.book_append_sheet(wb, ws2, 'Yearly Summary');
+  ws2['!cols'] = [{wch:30}, ...allYrs.map(() => ({wch:14})), {wch:16}];
+  ws2['!freeze'] = {xSplit:1, ySplit:2};
+  XLSX.utils.book_append_sheet(wb, ws2, 'Annual Summary');
 
-  // ── SHEET 3: Monthly Breakdown ────────────────────────────────────
-  const monthKeys = [...new Set(entries.map(e=>getMonthKey(e.date)).filter(Boolean))].sort().reverse();
-  const monthRows = [['Month', 'Income', 'Expenses', 'Net Cash Flow']];
-  monthKeys.forEach(mk => {
-    const inc = sumByFilter(e => getMonthKey(e.date)===mk && isIncome(e.category));
-    const exp = sumByFilter(e => getMonthKey(e.date)===mk && !isIncome(e.category));
-    monthRows.push([monthName(mk), inc, exp, inc-exp]);
+  // ── SHEET 3+: One tab per month ───────────────────────────────────
+  allMonthKeys.forEach(mk => {
+    const label = monthName(mk); // e.g. "January 2025"
+    const monthEntries = entries
+      .filter(e => getMonthKey(e.date) === mk)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const rows = [];
+
+    // Title row
+    rows.push([label, '', '', '', '']);
+    rows.push(['']); // spacer
+
+    // ── Transaction list ──
+    rows.push(['TRANSACTIONS', '', '', '', '']);
+    rows.push(['Date', 'Category', 'Description', 'Type', 'Amount ($)']);
+    monthEntries.forEach(e => rows.push([
+      e.date,
+      e.category,
+      e.desc || '',
+      isIncome(e.category) ? 'Income' : 'Expense',
+      isIncome(e.category) ? e.amount : -e.amount
+    ]));
+
+    rows.push(['']); // spacer
+
+    // ── Monthly totals ──
+    const mInc = monthEntries.filter(e => isIncome(e.category)).reduce((s, e) => s + e.amount, 0);
+    const mExp = monthEntries.filter(e => !isIncome(e.category)).reduce((s, e) => s + e.amount, 0);
+    rows.push(['SUMMARY', '', '', '', '']);
+    rows.push(['Total Income',   '', '', '', mInc]);
+    rows.push(['Total Expenses', '', '', '', mExp]);
+    rows.push(['Net Cash Flow',  '', '', '', mInc - mExp]);
+
+    rows.push(['']); // spacer
+
+    // ── Income by category ──
+    const mIncCats = incomeCats.filter(cat =>
+      monthEntries.some(e => e.category === cat)
+    );
+    if (mIncCats.length) {
+      rows.push(['INCOME BY CATEGORY', '', '', '', '']);
+      rows.push(['Category', '', '', '', 'Total']);
+      mIncCats.forEach(cat => {
+        const v = monthEntries.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0);
+        rows.push([cat, '', '', '', v]);
+      });
+      rows.push(['']); // spacer
+    }
+
+    // ── Expenses by category ──
+    const mExpCats = expCats.filter(cat =>
+      monthEntries.some(e => e.category === cat)
+    );
+    if (mExpCats.length) {
+      rows.push(['EXPENSES BY CATEGORY', '', '', '', '']);
+      rows.push(['Category', '', '', '', 'Total']);
+      mExpCats.forEach(cat => {
+        const v = monthEntries.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0);
+        rows.push([cat, '', '', '', v]);
+      });
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:14},{wch:24},{wch:32},{wch:10},{wch:14}];
+    ws['!freeze'] = {xSplit:0, ySplit:4};
+
+    // Sheet name: "Jan 2025" format to keep it short
+    const d = new Date(mk + '-01');
+    const sheetName = safeSheetName(
+      d.toLocaleString('default', {month:'short'}) + ' ' + d.getFullYear()
+    );
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
-  // Totals
-  monthRows.push([
-    'TOTAL',
-    sumByFilter(e => isIncome(e.category)),
-    sumByFilter(e => !isIncome(e.category)),
-    sumByFilter(e => isIncome(e.category)) - sumByFilter(e => !isIncome(e.category))
-  ]);
-  const ws3 = XLSX.utils.aoa_to_sheet(monthRows);
-  ws3['!cols'] = [{wch:20},{wch:14},{wch:14},{wch:16}];
-  ws3['!freeze'] = {xSplit:0, ySplit:1};
-  XLSX.utils.book_append_sheet(wb, ws3, 'Monthly Breakdown');
 
-  // ── SHEET 4: Property Settings ────────────────────────────────────
+  // ── FINAL SHEET: Property Settings ───────────────────────────────
   const settingsRows = [
     ['Property Tracker — Exported ' + now()],
     [''],
     ['PROPERTY DETAILS', ''],
-    ['Address',              settings.address || ''],
-    ['Purchase Price',       settings.purchasePrice],
-    ['Down Payment',         settings.downPayment],
-    ['Closing Costs',        settings.closingCosts],
-    ['Other Initial Costs',  settings.otherInitial],
-    ['Total Initial Investment', (settings.purchasePrice||0)-(settings.downPayment||0)+(settings.closingCosts||0)+(settings.otherInitial||0)],
-    ['Purchase Year',        settings.purchaseYear],
+    ['Address',               settings.address || ''],
+    ['Purchase Price',        settings.purchasePrice],
+    ['Down Payment',          settings.downPayment],
+    ['Closing Costs',         settings.closingCosts],
+    ['Other Initial Costs',   settings.otherInitial],
+    ['Total Initial Investment',
+      (settings.purchasePrice||0) - (settings.downPayment||0) +
+      (settings.closingCosts||0) + (settings.otherInitial||0)],
+    ['Purchase Year',         settings.purchaseYear],
     [''],
     ['BREAK-EVEN ASSUMPTIONS', ''],
-    ['Years Owned at Sale',     beSettings.years],
-    ['Annual Appreciation %',   beSettings.appreciation + '%'],
-    ['Agent Commission %',      beSettings.commission + '%'],
-    ['Sale Closing Costs %',    beSettings.closing + '%'],
-    ['Loan Balance at Sale',    beSettings.loan],
+    ['Years Owned at Sale',      beSettings.years],
+    ['Annual Appreciation %',    beSettings.appreciation + '%'],
+    ['Agent Commission %',       beSettings.commission + '%'],
+    ['Sale Closing Costs %',     beSettings.closing + '%'],
+    ['Loan Balance at Sale',     beSettings.loan],
     [''],
     ['TAX', ''],
-    ['Marginal Tax Rate',       taxRate + '%'],
+    ['Marginal Tax Rate',        taxRate + '%'],
   ];
-  const ws4 = XLSX.utils.aoa_to_sheet(settingsRows);
-  ws4['!cols'] = [{wch:30},{wch:20}];
-  XLSX.utils.book_append_sheet(wb, ws4, 'Settings');
+  const wsSettings = XLSX.utils.aoa_to_sheet(settingsRows);
+  wsSettings['!cols'] = [{wch:30},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, wsSettings, 'Settings');
 
-  // ── Write & download ─────────────────────────────────────────────
+  // ── Download ──────────────────────────────────────────────────────
   const filename = `property_tracker_${now()}.xlsx`;
   XLSX.writeFile(wb, filename);
   showToast('📊 Spreadsheet exported!');
