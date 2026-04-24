@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-04-24T04:04:14.552Z",
+  "_savedAt": "2026-04-24T04:07:39.096Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -8,7 +8,35 @@
     "otherInitial": 0.6,
     "purchaseYear": 2026
   },
-  "entries": [],
+  "entries": [
+    {
+      "id": "1777003648395",
+      "date": "2026-04-23",
+      "category": "Electricity",
+      "amount": 120.72,
+      "desc": "Electric - April",
+      "notes": "",
+      "recur": "none"
+    },
+    {
+      "id": "1777003499663",
+      "date": "2026-04-23",
+      "category": "Rental Income",
+      "amount": 650,
+      "desc": "Rent - Timmy",
+      "notes": "",
+      "recur": "monthly"
+    },
+    {
+      "id": "1777003474876",
+      "date": "2026-04-23",
+      "category": "Rental Income",
+      "amount": 650,
+      "desc": "Rent - Cade",
+      "notes": "",
+      "recur": "monthly"
+    }
+  ],
   "beSettings": {
     "years": 5,
     "appreciation": 3,
