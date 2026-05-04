@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-05-04T17:11:41.095Z",
+  "_savedAt": "2026-05-04T17:11:46.510Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -49,7 +49,7 @@
     },
     {
       "id": "1777003474876",
-      "date": "2026-04-23",
+      "date": "2026-04-01",
       "category": "Rental Income",
       "amount": 650,
       "desc": "Rent - Cade",
