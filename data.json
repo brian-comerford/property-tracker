@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-04-25T22:06:57.297Z",
+  "_savedAt": "2026-05-04T17:11:35.935Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -40,7 +40,7 @@
     },
     {
       "id": "1777003499663",
-      "date": "2026-04-23",
+      "date": "2026-04-01",
       "category": "Rental Income",
       "amount": 650,
       "desc": "Rent - Timmy",
