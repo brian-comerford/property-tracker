@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-05-04T17:12:35.762Z",
+  "_savedAt": "2026-05-04T17:12:57.063Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1777914776861",
+      "date": "2026-05-02",
+      "category": "Rental Income",
+      "amount": 650,
+      "desc": "Rent - Cade",
+      "notes": "",
+      "recur": "monthly"
+    },
     {
       "id": "1777914755543",
       "date": "2026-05-02",
