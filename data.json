@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-05-04T17:13:10.306Z",
+  "_savedAt": "2026-05-05T22:42:48.650Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1778020968625",
+      "date": "2026-05-07",
+      "category": "Gas/Heat",
+      "amount": 24.92,
+      "desc": "West Texas Gas - Bill for March",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1777914776861",
       "date": "2026-05-02",
