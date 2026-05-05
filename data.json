@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-05-05T22:42:48.650Z",
+  "_savedAt": "2026-05-05T22:43:09.647Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1778020989414",
+      "date": "2026-05-01",
+      "category": "Internet",
+      "amount": 14.56,
+      "desc": "Kinetic",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1778020968625",
       "date": "2026-05-07",
