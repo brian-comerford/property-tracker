@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-05-05T22:43:09.647Z",
+  "_savedAt": "2026-05-10T04:15:26.619Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1778386526599",
+      "date": "2026-05-09",
+      "category": "Water & Sewer",
+      "amount": 67.28,
+      "desc": "Van Horn Utilities",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1778020989414",
       "date": "2026-05-01",
