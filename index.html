@@ -297,6 +297,44 @@
     background: var(--blue); border-color: var(--blue); color: #fff;
   }
 
+  /* ── DOCUMENTS ── */
+  .doc-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+  }
+  .doc-card {
+    background: #fff; border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden; cursor: pointer;
+    transition: transform .15s; -webkit-tap-highlight-color: transparent;
+  }
+  .doc-card:active { transform: scale(.97); }
+  .doc-thumb {
+    width: 100%; height: 110px; object-fit: cover; display: block;
+    background: var(--paper2);
+  }
+  .doc-thumb-placeholder {
+    width: 100%; height: 110px; background: var(--paper2);
+    display: grid; place-items: center; font-size: 2.2rem;
+  }
+  .doc-info { padding: 8px 10px 10px; }
+  .doc-name { font-size: .82rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-meta { font-size: .7rem; color: var(--ink3); margin-top: 2px; }
+
+  /* ── IMAGE VIEWER ── */
+  .img-viewer {
+    position: fixed; inset: 0; background: rgba(0,0,0,.95);
+    z-index: 500; display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .img-viewer.open { display: flex; }
+  .img-viewer img { max-width: 100%; max-height: 80dvh; object-fit: contain; border-radius: 4px; }
+  .img-viewer-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(rgba(0,0,0,.6),transparent);
+  }
+  .img-viewer-title { color: #fff; font-size: .9rem; font-weight: 600; }
+  .img-viewer-close { background: rgba(255,255,255,.15); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: grid; place-items: center; }
+
   .mt4 { margin-top: 4px; }
   .mt8 { margin-top: 8px; }
   .mt12 { margin-top: 12px; }
@@ -397,8 +435,9 @@
           </optgroup>
           <optgroup label="🏦 Fixed Expenses">
             <option value="Mortgage (P&I)">Mortgage (P&I)</option>
-            <option value="Property Tax">Property Tax</option>
-            <option value="Homeowners Insurance">Homeowners Insurance</option>
+            <option value="Escrow (Tax + Insurance)">Escrow (Tax + Insurance)</option>
+            <option value="Property Tax">Property Tax (itemized)</option>
+            <option value="Homeowners Insurance">Homeowners Insurance (itemized)</option>
             <option value="HOA Fee">HOA Fee</option>
           </optgroup>
           <optgroup label="⚡ Utilities">
@@ -443,7 +482,26 @@
         <input type="hidden" id="bill-recur" value="none">
       </div>
 
-      <button class="btn btn-primary" onclick="saveBill()">Add Entry</button>
+      <!-- Photo capture -->
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">Photo / Receipt <span class="text-muted">(optional)</span></label>
+        <input type="file" id="bill-photo-input" accept="image/*" capture="environment"
+          style="display:none" onchange="handleBillPhotoSelect(event)">
+        <!-- Preview (hidden until photo chosen) -->
+        <div id="bill-photo-preview" style="display:none;position:relative;margin-bottom:8px">
+          <img id="bill-photo-img" src="" alt="receipt"
+            style="width:100%;border-radius:10px;max-height:180px;object-fit:cover">
+          <button type="button" onclick="clearBillPhoto()"
+            style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:.85rem;cursor:pointer;display:grid;place-items:center">✕</button>
+        </div>
+        <button type="button" class="btn btn-ghost" id="bill-photo-btn"
+          style="margin-top:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:1rem"
+          onclick="document.getElementById('bill-photo-input').click()">
+          📷 Take Photo or Upload Receipt
+        </button>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveBill()" style="margin-top:10px">Add Entry</button>
     </div>
   </div>
 
@@ -577,6 +635,29 @@
   <div id="breakeven-results"></div>
 </div>
 
+<!-- ══════════════ SCREEN: DOCUMENTS ══════════════ -->
+<div class="screen" id="screen-docs">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="section-label" style="margin:0">House Documents</div>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('doc-file-input').click()">+ Add Document</button>
+  </div>
+  <input type="file" id="doc-file-input" accept="image/*,application/pdf" capture="environment"
+    style="display:none" onchange="handleDocUpload(event)">
+
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-body" style="padding:10px 14px">
+      <p class="text-muted" style="font-size:.78rem;line-height:1.6">
+        Save photos or scans of documents related to your property — deeds, inspection reports, warranties, leases, insurance policies, permits, etc. Images are compressed and synced to GitHub.
+      </p>
+    </div>
+  </div>
+
+  <!-- Category filter tabs -->
+  <div class="tab-strip" id="doc-filter-tabs"></div>
+
+  <div id="docs-grid"></div>
+</div>
+
 <!-- ══════════════ BOTTOM NAV ══════════════ -->
 <nav class="bottom-nav">
   <button class="nav-btn active" onclick="switchScreen('dashboard',this)">
@@ -591,8 +672,8 @@
   <button class="nav-btn" onclick="switchScreen('tax',this)">
     <span class="nav-icon">🧾</span>Tax
   </button>
-  <button class="nav-btn" onclick="switchScreen('breakeven',this)">
-    <span class="nav-icon">📈</span>Break-Even
+  <button class="nav-btn" onclick="switchScreen('docs',this)">
+    <span class="nav-icon">📁</span>Docs
   </button>
 </nav>
 
@@ -675,6 +756,8 @@
         <button class="btn btn-ghost" style="flex:1;margin-top:0;min-width:120px" onclick="githubSync()">📤 Push to GitHub</button>
       </div>
       <div id="gh-status" style="margin-top:12px;font-size:.8rem;line-height:1.6;background:var(--paper);border-radius:8px;padding:10px 12px;display:none;word-break:break-all;font-family:monospace;white-space:pre-wrap"></div>
+      <div class="divider" style="margin-top:16px"></div>
+      <button class="btn btn-ghost" onclick="closeSettings();switchScreen('breakeven',null);" style="margin-top:0">📈 Open Break-Even Calculator</button>
     </div>
   </div>
 </div>
@@ -688,6 +771,19 @@
       <button class="close-btn" onclick="closeEntry()">✕</button>
     </div>
     <div class="sheet-body" id="entry-sheet-body"></div>
+  </div>
+</div>
+
+<!-- IMAGE VIEWER -->
+<div class="img-viewer" id="img-viewer">
+  <div class="img-viewer-bar">
+    <span class="img-viewer-title" id="img-viewer-title"></span>
+    <button class="img-viewer-close" onclick="closeImageViewer()">✕</button>
+  </div>
+  <img id="img-viewer-img" src="" alt="">
+  <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;gap:10px">
+    <a id="img-viewer-download" download="document.jpg" style="background:rgba(255,255,255,.15);color:#fff;padding:9px 18px;border-radius:20px;font-size:.85rem;font-weight:600;text-decoration:none">⬇ Save</a>
+    <button id="img-viewer-delete" onclick="imgViewerDelete()" style="background:rgba(192,57,43,.7);color:#fff;padding:9px 18px;border-radius:20px;font-size:.85rem;font-weight:600;border:none;cursor:pointer">🗑 Delete</button>
   </div>
 </div>
 
@@ -796,7 +892,7 @@ const DB = (() => {
   return {
     // Call once at startup — loads everything from IDB into memory
     async init() {
-      const keys = ['pt_settings','pt_entries','pt_be','pt_taxrate','pt_gh','pt_last_sync'];
+      const keys = ['pt_settings','pt_entries','pt_be','pt_taxrate','pt_gh','pt_last_sync','pt_docs'];
       try {
         await Promise.all(keys.map(async k => {
           const v = await idbGet(k);
@@ -862,24 +958,29 @@ function saveAll() {
 const INCOME_CATS = ['Rental Income', 'Other Income'];
 const isIncome = c => INCOME_CATS.includes(c);
 
+// Escrow-related categories — combined for total display
+const ESCROW_CATS = ['Escrow (Tax + Insurance)', 'Property Tax', 'Homeowners Insurance'];
+const isEscrow = c => ESCROW_CATS.includes(c);
+
 const CAT_META = {
-  'Rental Income':      { icon:'🏠', color:'#e3faf0', text:'#1a6b4a' },
-  'Other Income':       { icon:'💵', color:'#e3faf0', text:'#1a6b4a' },
-  'Mortgage (P&I)':     { icon:'🏦', color:'#e3edf7', text:'#1a4a7a' },
-  'Property Tax':       { icon:'🏛️', color:'#fdf6e3', text:'#b8860b' },
-  'Homeowners Insurance':{ icon:'🛡️', color:'#e3edf7', text:'#1a4a7a' },
-  'HOA Fee':            { icon:'🏘️', color:'#e3edf7', text:'#1a4a7a' },
-  'Electricity':        { icon:'⚡', color:'#fff9e3', text:'#b8860b' },
-  'Gas/Heat':           { icon:'🔥', color:'#fdecea', text:'#c0392b' },
-  'Water & Sewer':      { icon:'💧', color:'#e3edf7', text:'#1a4a7a' },
-  'Trash':              { icon:'🗑️', color:'#f2f2f2', text:'#555' },
-  'Internet':           { icon:'📶', color:'#e3edf7', text:'#1a4a7a' },
-  'Repairs/Maintenance':{ icon:'🔧', color:'#fdecea', text:'#c0392b' },
-  'Capital Improvement':{ icon:'🏗️', color:'#fdecea', text:'#c0392b' },
-  'Lawn/Snow':          { icon:'🌿', color:'#e3faf0', text:'#1a6b4a' },
-  'Pest Control':       { icon:'🪲', color:'#f2f2f2', text:'#555' },
-  'Property Mgmt':      { icon:'👤', color:'#e3edf7', text:'#1a4a7a' },
-  'Other Expense':      { icon:'📌', color:'#f2f2f2', text:'#555' },
+  'Rental Income':            { icon:'🏠', color:'#e3faf0', text:'#1a6b4a' },
+  'Other Income':             { icon:'💵', color:'#e3faf0', text:'#1a6b4a' },
+  'Mortgage (P&I)':           { icon:'🏦', color:'#e3edf7', text:'#1a4a7a' },
+  'Escrow (Tax + Insurance)': { icon:'🏛️', color:'#fdf6e3', text:'#b8860b' },
+  'Property Tax':             { icon:'🏛️', color:'#fdf6e3', text:'#b8860b' },
+  'Homeowners Insurance':     { icon:'🛡️', color:'#e3edf7', text:'#1a4a7a' },
+  'HOA Fee':                  { icon:'🏘️', color:'#e3edf7', text:'#1a4a7a' },
+  'Electricity':              { icon:'⚡', color:'#fff9e3', text:'#b8860b' },
+  'Gas/Heat':                 { icon:'🔥', color:'#fdecea', text:'#c0392b' },
+  'Water & Sewer':            { icon:'💧', color:'#e3edf7', text:'#1a4a7a' },
+  'Trash':                    { icon:'🗑️', color:'#f2f2f2', text:'#555' },
+  'Internet':                 { icon:'📶', color:'#e3edf7', text:'#1a4a7a' },
+  'Repairs/Maintenance':      { icon:'🔧', color:'#fdecea', text:'#c0392b' },
+  'Capital Improvement':      { icon:'🏗️', color:'#fdecea', text:'#c0392b' },
+  'Lawn/Snow':                { icon:'🌿', color:'#e3faf0', text:'#1a6b4a' },
+  'Pest Control':             { icon:'🪲', color:'#f2f2f2', text:'#555' },
+  'Property Mgmt':            { icon:'👤', color:'#e3edf7', text:'#1a4a7a' },
+  'Other Expense':            { icon:'📌', color:'#f2f2f2', text:'#555' },
 };
 
 function catMeta(c) { return CAT_META[c] || { icon:'📄', color:'#f2f2f2', text:'#555' }; }
@@ -945,6 +1046,7 @@ function switchScreen(name, btn) {
   if (name === 'history') renderHistory();
   if (name === 'tax') renderTax();
   if (name === 'breakeven') renderBreakeven();
+  if (name === 'docs') renderDocs();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1072,11 +1174,17 @@ function entryRow(e, selectable = false) {
     </div>`;
   }
 
+  // Photo indicator: thumbnail if photo exists, small camera badge if not
+  const photoEl = e.photo
+    ? `<img src="${e.photo}" onclick="event.stopPropagation();openImageViewer('${e.id}','entry')"
+         style="width:42px;height:42px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer;border:2px solid var(--paper2)">`
+    : `<div class="list-icon" style="background:${m.color};">${m.icon}</div>`;
+
   return `<div class="list-item" onclick="openEntry('${e.id}')">
-    <div class="list-icon" style="background:${m.color};">${m.icon}</div>
+    ${photoEl}
     <div class="list-main">
       <div class="list-name">${e.desc || e.category}${recurBadge}</div>
-      <div class="list-meta">${e.category} · ${e.date}</div>
+      <div class="list-meta">${e.category} · ${e.date}${e.photo ? ' · 📷' : ''}</div>
     </div>
     <div class="list-amount ${income ? 'amount-pos' : 'amount-neg'}">${income?'+':'-'}${fmt(e.amount)}</div>
   </div>`;
@@ -1180,6 +1288,34 @@ function setRecur(btn) {
   document.getElementById('bill-recur').value = btn.dataset.val;
 }
 
+// ── Bill photo capture (on Log Bill screen) ───────────────────────
+let _pendingBillPhoto = null; // compressed data URL, held until saveBill
+
+async function handleBillPhotoSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  showToast('⏳ Processing photo…');
+  try {
+    const compressed = await compressImage(file);
+    _pendingBillPhoto = compressed;
+    // Show preview
+    document.getElementById('bill-photo-img').src = compressed;
+    document.getElementById('bill-photo-preview').style.display = 'block';
+    document.getElementById('bill-photo-btn').textContent = '🔄 Replace Photo';
+    showToast('📷 Photo ready — tap Add Entry to save');
+  } catch {
+    showToast('❌ Could not process photo');
+  }
+}
+
+function clearBillPhoto() {
+  _pendingBillPhoto = null;
+  document.getElementById('bill-photo-img').src = '';
+  document.getElementById('bill-photo-preview').style.display = 'none';
+  document.getElementById('bill-photo-btn').textContent = '📷 Take Photo or Upload Receipt';
+  document.getElementById('bill-photo-input').value = '';
+}
+
 function saveBill() {
   const date   = document.getElementById('bill-date').value;
   const amount = parseFloat(document.getElementById('bill-amount').value);
@@ -1195,7 +1331,8 @@ function saveBill() {
     id: Date.now().toString(),
     date, category: cat,
     amount: parseFloat(amount.toFixed(2)),
-    desc: desc || cat, notes, recur
+    desc: desc || cat, notes, recur,
+    ...(_pendingBillPhoto ? { photo: _pendingBillPhoto } : {})
   };
   entries.unshift(entry);
   saveAll();
@@ -1204,9 +1341,9 @@ function saveBill() {
   document.getElementById('bill-amount').value = '';
   document.getElementById('bill-desc').value = '';
   document.getElementById('bill-notes').value = '';
-  // Reset recur to one-time
   document.getElementById('bill-recur').value = 'none';
   document.querySelectorAll('.recur-btn').forEach(b => b.classList.toggle('active', b.dataset.val === 'none'));
+  clearBillPhoto();
   document.getElementById('bill-amount').focus();
 
   showToast(isIncome(cat) ? '✅ Income logged!' : '✅ Expense logged!');
@@ -1329,15 +1466,31 @@ function renderTaxYear() {
     catBreakdown[e.category] = (catBreakdown[e.category]||0) + e.amount;
   });
 
+  // Compute combined escrow total (all three escrow-related categories)
+  const escrowTotal = ESCROW_CATS.reduce((s, c) => s + (catBreakdown[c] || 0), 0);
+
   const incomeRows = Object.entries(catBreakdown)
     .filter(([c]) => isIncome(c))
     .sort((a,b) => b[1]-a[1])
     .map(([c,v]) => `<div class="breakdown-row"><span class="breakdown-label">${catMeta(c).icon} ${c}</span><span class="breakdown-val" style="color:var(--accent)">${fmt(v)}</span></div>`).join('');
 
+  // Build expense rows — group escrow cats under a combined header
+  const shownEscrow = Object.keys(catBreakdown).filter(c => isEscrow(c));
   const expRows = Object.entries(catBreakdown)
-    .filter(([c]) => !isIncome(c))
+    .filter(([c]) => !isIncome(c) && !isEscrow(c))
     .sort((a,b) => b[1]-a[1])
-    .map(([c,v]) => `<div class="breakdown-row"><span class="breakdown-label">${catMeta(c).icon} ${c}</span><span class="breakdown-val" style="color:var(--red)">${fmt(v)}</span></div>`).join('');
+    .map(([c,v]) => `<div class="breakdown-row"><span class="breakdown-label">${catMeta(c).icon} ${c}</span><span class="breakdown-val" style="color:var(--red)">${fmt(v)}</span></div>`)
+    .join('') +
+    (shownEscrow.length ? `
+      <div class="breakdown-row" style="border-top:1px dashed var(--paper3);margin-top:4px;padding-top:8px">
+        <span class="breakdown-label fw6">🏛️ Escrow Total (Tax + Insurance)</span>
+        <span class="breakdown-val" style="color:var(--red)">${fmt(escrowTotal)}</span>
+      </div>
+      ${shownEscrow.map(c => `
+        <div class="breakdown-row" style="padding-left:16px">
+          <span class="breakdown-label" style="color:var(--ink3);font-size:.8rem">${catMeta(c).icon} ${c}</span>
+          <span class="breakdown-val" style="color:var(--red);font-size:.85rem">${fmt(catBreakdown[c])}</span>
+        </div>`).join('')}` : '');
 
   document.getElementById('tax-content').innerHTML = `
     <div class="card">
@@ -1592,8 +1745,9 @@ const CAT_OPTIONS = `
   </optgroup>
   <optgroup label="🏦 Fixed Expenses">
     <option value="Mortgage (P&I)">Mortgage (P&I)</option>
-    <option value="Property Tax">Property Tax</option>
-    <option value="Homeowners Insurance">Homeowners Insurance</option>
+    <option value="Escrow (Tax + Insurance)">Escrow (Tax + Insurance)</option>
+    <option value="Property Tax">Property Tax (itemized)</option>
+    <option value="Homeowners Insurance">Homeowners Insurance (itemized)</option>
     <option value="HOA Fee">HOA Fee</option>
   </optgroup>
   <optgroup label="⚡ Utilities">
@@ -1672,6 +1826,23 @@ function openEntry(id) {
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-primary" style="flex:2" onclick="saveEntry('${e.id}')">💾 Save Changes</button>
         <button class="btn btn-danger" style="flex:1;margin-top:0" onclick="deleteEntry('${e.id}')">🗑</button>
+      </div>
+
+      <!-- Bill photo attachment -->
+      <div class="divider" style="margin-top:16px"></div>
+      <div class="form-group" style="margin-top:12px;margin-bottom:0">
+        <label class="form-label">Bill Photo / Receipt</label>
+        ${e.photo
+          ? `<div style="position:relative;margin-bottom:8px">
+               <img src="${e.photo}" style="width:100%;border-radius:10px;max-height:220px;object-fit:cover;cursor:pointer" onclick="openImageViewer('${e.id}','entry')">
+               <button onclick="removeEntryPhoto('${e.id}')" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:.85rem;cursor:pointer;display:grid;place-items:center">✕</button>
+             </div>`
+          : ''}
+        <input type="file" id="entry-photo-input-${e.id}" accept="image/*" capture="environment"
+          style="display:none" onchange="attachEntryPhoto('${e.id}',this)">
+        <button class="btn btn-ghost" style="width:100%;margin-top:0" onclick="document.getElementById('entry-photo-input-${e.id}').click()">
+          ${e.photo ? '🔄 Replace Photo' : '📷 Add Photo / Scan'}
+        </button>
       </div>
     </div>
   `;
@@ -1812,7 +1983,11 @@ function toggleTokenVis() {
 }
 
 function ghDataPayload() {
-  return JSON.stringify({ _savedAt: new Date().toISOString(), settings, entries, beSettings, taxRate }, null, 2);
+  return JSON.stringify({
+    _savedAt: new Date().toISOString(),
+    settings, entries, beSettings, taxRate,
+    docs: loadDocs()
+  }, null, 2);
 }
 
 function ghHeaders(token) {
@@ -1956,6 +2131,7 @@ async function githubLoad(verbose = false) {
     if (Array.isArray(json.entries)) { entries    = json.entries;     DB.save('pt_entries', entries); }
     if (json.beSettings)             { beSettings = json.beSettings; DB.save('pt_be', beSettings); }
     if (json.taxRate !== undefined)  { taxRate    = json.taxRate;     DB.save('pt_taxrate', taxRate); }
+    if (Array.isArray(json.docs))    { saveDocs(json.docs); }
     DB.save('pt_last_sync', Date.now());
 
     document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
@@ -2025,6 +2201,235 @@ document.addEventListener('DOMContentLoaded', async () => {
     githubLoad();
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// IMAGE COMPRESSION
+// ══════════════════════════════════════════════════════════════════
+function compressImage(file, maxW = 1200, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // Convert to grayscale — documents don't need color and this cuts size ~50%
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          // Standard luminance weights (matches human perception of brightness)
+          const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+          data[i] = data[i+1] = data[i+2] = gray;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BILL PHOTO ATTACHMENT
+// ══════════════════════════════════════════════════════════════════
+async function attachEntryPhoto(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  showToast('⏳ Processing photo…');
+  try {
+    const compressed = await compressImage(file);
+    const idx = entries.findIndex(e => e.id === id);
+    if (idx === -1) return;
+    entries[idx].photo = compressed;
+    saveAll();
+    pushToGitHub();
+    showToast('📷 Photo saved!');
+    openEntry(id); // re-render the edit sheet to show the new photo
+  } catch {
+    showToast('❌ Could not process photo');
+  }
+}
+
+function removeEntryPhoto(id) {
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  delete entries[idx].photo;
+  saveAll();
+  pushToGitHub();
+  showToast('🗑 Photo removed');
+  openEntry(id);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DOCUMENTS
+// ══════════════════════════════════════════════════════════════════
+const DOC_CATEGORIES = ['All','Deed & Title','Lease','Insurance','Inspection','Warranty','Permit','Tax','Mortgage','Other'];
+let docFilterCat = 'All';
+
+function loadDocs() {
+  return DB.load('pt_docs', []);
+}
+function saveDocs(docs) {
+  DB.save('pt_docs', docs);
+}
+
+async function handleDocUpload(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  showToast('⏳ Processing…');
+
+  const name    = prompt('Document name:', files[0].name.replace(/\.[^.]+$/, '')) || files[0].name;
+  const catList = DOC_CATEGORIES.filter(c => c !== 'All');
+  // Use a simple prompt-based picker since confirm() works for basic strings
+  const catIdx  = prompt(`Category (enter number):\n${catList.map((c,i)=>`${i+1}. ${c}`).join('\n')}`, '10');
+  const cat     = catList[(parseInt(catIdx)||10) - 1] || 'Other';
+
+  try {
+    let dataUrl;
+    const file = files[0];
+    if (file.type.startsWith('image/')) {
+      dataUrl = await compressImage(file);
+    } else {
+      // PDF — store as base64 data URL
+      dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    }
+
+    const docs = loadDocs();
+    docs.unshift({
+      id:       Date.now().toString(),
+      name,
+      category: cat,
+      date:     now(),
+      type:     file.type,
+      size:     file.size,
+      data:     dataUrl
+    });
+    saveDocs(docs);
+    pushToGitHub();
+    showToast('✅ Document saved!');
+    event.target.value = '';
+    renderDocs();
+  } catch (err) {
+    showToast('❌ Upload failed: ' + err.message);
+  }
+}
+
+function renderDocs() {
+  // Filter tabs
+  const tabStrip = document.getElementById('doc-filter-tabs');
+  if (tabStrip) {
+    tabStrip.innerHTML = DOC_CATEGORIES.map(c =>
+      `<button class="tab-pill ${c===docFilterCat?'active':''}" onclick="setDocFilter('${c}',this)">${c}</button>`
+    ).join('');
+  }
+
+  const docs = loadDocs();
+  const filtered = docFilterCat === 'All' ? docs : docs.filter(d => d.category === docFilterCat);
+  const grid = document.getElementById('docs-grid');
+  if (!grid) return;
+
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty"><div class="empty-icon">📁</div><div class="empty-text">No documents yet.<br>Tap "+ Add Document" to upload a photo or scan.</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = `<div class="doc-grid">` + filtered.map(doc => {
+    const isImg = doc.type && doc.type.startsWith('image/');
+    const thumb = isImg
+      ? `<img class="doc-thumb" src="${doc.data}" alt="${doc.name}" loading="lazy">`
+      : `<div class="doc-thumb-placeholder">📄</div>`;
+    return `
+      <div class="doc-card" onclick="openDoc('${doc.id}')">
+        ${thumb}
+        <div class="doc-info">
+          <div class="doc-name">${doc.name}</div>
+          <div class="doc-meta">${doc.category} · ${doc.date}</div>
+        </div>
+      </div>`;
+  }).join('') + `</div>`;
+}
+
+function setDocFilter(cat, btn) {
+  docFilterCat = cat;
+  document.querySelectorAll('#doc-filter-tabs .tab-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDocs();
+}
+
+function openDoc(id) {
+  const docs = loadDocs();
+  const doc  = docs.find(d => d.id === id);
+  if (!doc) return;
+
+  const isImg = doc.type && doc.type.startsWith('image/');
+  if (isImg) {
+    openImageViewer(id, 'doc');
+  } else {
+    // PDF — open in new tab
+    const win = window.open();
+    if (win) { win.document.write(`<iframe src="${doc.data}" style="width:100%;height:100vh;border:none"></iframe>`); }
+  }
+}
+
+let _viewerCtx = null; // { source: 'doc'|'entry', id }
+
+function openImageViewer(id, source) {
+  let src = '', title = '';
+  if (source === 'doc') {
+    const doc = loadDocs().find(d => d.id === id);
+    if (!doc) return;
+    src = doc.data; title = doc.name;
+  } else {
+    const entry = entries.find(e => e.id === id);
+    if (!entry || !entry.photo) return;
+    src = entry.photo; title = entry.desc || entry.category;
+  }
+  _viewerCtx = { source, id };
+  document.getElementById('img-viewer-img').src   = src;
+  document.getElementById('img-viewer-title').textContent = title;
+  document.getElementById('img-viewer-download').href = src;
+  document.getElementById('img-viewer-download').download = title.replace(/\s+/g,'_') + '.jpg';
+  document.getElementById('img-viewer').classList.add('open');
+}
+
+function closeImageViewer() {
+  document.getElementById('img-viewer').classList.remove('open');
+  _viewerCtx = null;
+}
+
+function imgViewerDelete() {
+  if (!_viewerCtx) return;
+  const { source, id } = _viewerCtx;
+  closeImageViewer();
+  if (source === 'doc') {
+    deleteDoc(id);
+  } else {
+    removeEntryPhoto(id);
+  }
+}
+
+function deleteDoc(id) {
+  const docs = loadDocs().filter(d => d.id !== id);
+  saveDocs(docs);
+  pushToGitHub();
+  showToast('🗑 Document deleted');
+  renderDocs();
+}
 
 // ══════════════════════════════════════════════════════════════════
 // EXPORT
@@ -2110,7 +2515,9 @@ function exportXLSX() {
   // Expense section
   summaryRows.push(['', ...allYrs.map(() => ''), '']); // spacer
   summaryRows.push(['EXPENSES', ...allYrs.map(() => ''), '']);
-  expCats.forEach(cat => {
+
+  // Non-escrow expense cats first
+  expCats.filter(c => !isEscrow(c)).forEach(cat => {
     const row = [cat];
     let total = 0;
     allYrs.forEach(y => {
@@ -2120,6 +2527,24 @@ function exportXLSX() {
     row.push(total);
     summaryRows.push(row);
   });
+
+  // Escrow group — combined total row + itemized sub-rows
+  const escrowCatsUsed = expCats.filter(c => isEscrow(c));
+  if (escrowCatsUsed.length) {
+    const escrowTotals = allYrs.map(y => sumByFilter(e => getYear(e.date) === y && isEscrow(e.category)));
+    const escrowGrand  = escrowTotals.reduce((s, v) => s + v, 0);
+    summaryRows.push(['ESCROW TOTAL (Tax + Insurance)', ...escrowTotals, escrowGrand]);
+    escrowCatsUsed.forEach(cat => {
+      const row = [`  └ ${cat}`];
+      let total = 0;
+      allYrs.forEach(y => {
+        const v = sumByFilter(e => getYear(e.date) === y && e.category === cat);
+        row.push(v); total += v;
+      });
+      row.push(total);
+      summaryRows.push(row);
+    });
+  }
   const expTotals = allYrs.map(y => sumByFilter(e => getYear(e.date) === y && !isIncome(e.category)));
   const expGrand  = expTotals.reduce((s, v) => s + v, 0);
   summaryRows.push(['TOTAL EXPENSES', ...expTotals, expGrand]);
