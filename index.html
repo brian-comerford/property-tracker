@@ -485,7 +485,7 @@
       <!-- Photo capture -->
       <div class="form-group" style="margin-bottom:4px">
         <label class="form-label">Photo / Receipt <span class="text-muted">(optional)</span></label>
-        <input type="file" id="bill-photo-input" accept="image/*" capture="environment"
+        <input type="file" id="bill-photo-input" accept="image/*"
           style="display:none" onchange="handleBillPhotoSelect(event)">
         <!-- Preview (hidden until photo chosen) -->
         <div id="bill-photo-preview" style="display:none;position:relative;margin-bottom:8px">
@@ -497,7 +497,7 @@
         <button type="button" class="btn btn-ghost" id="bill-photo-btn"
           style="margin-top:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:1rem"
           onclick="document.getElementById('bill-photo-input').click()">
-          📷 Take Photo or Upload Receipt
+          📷 Take Photo or Choose from Library
         </button>
       </div>
 
@@ -641,7 +641,7 @@
     <div class="section-label" style="margin:0">House Documents</div>
     <button class="btn btn-primary btn-sm" onclick="document.getElementById('doc-file-input').click()">+ Add Document</button>
   </div>
-  <input type="file" id="doc-file-input" accept="image/*,application/pdf" capture="environment"
+  <input type="file" id="doc-file-input" accept="image/*,application/pdf"
     style="display:none" onchange="handleDocUpload(event)">
 
   <div class="card" style="margin-bottom:12px">
@@ -1312,7 +1312,7 @@ function clearBillPhoto() {
   _pendingBillPhoto = null;
   document.getElementById('bill-photo-img').src = '';
   document.getElementById('bill-photo-preview').style.display = 'none';
-  document.getElementById('bill-photo-btn').textContent = '📷 Take Photo or Upload Receipt';
+  document.getElementById('bill-photo-btn').textContent = '📷 Take Photo or Choose from Library';
   document.getElementById('bill-photo-input').value = '';
 }
 
@@ -1838,7 +1838,7 @@ function openEntry(id) {
                <button onclick="removeEntryPhoto('${e.id}')" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:.85rem;cursor:pointer;display:grid;place-items:center">✕</button>
              </div>`
           : ''}
-        <input type="file" id="entry-photo-input-${e.id}" accept="image/*" capture="environment"
+        <input type="file" id="entry-photo-input-${e.id}" accept="image/*"
           style="display:none" onchange="attachEntryPhoto('${e.id}',this)">
         <button class="btn btn-ghost" style="width:100%;margin-top:0" onclick="document.getElementById('entry-photo-input-${e.id}').click()">
           ${e.photo ? '🔄 Replace Photo' : '📷 Add Photo / Scan'}
