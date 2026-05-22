@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-05-22T19:07:47.644Z",
+  "_savedAt": "2026-05-22T19:08:02.055Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -14,7 +14,7 @@
     {
       "id": "1779476867554",
       "date": "2026-05-22",
-      "category": "Rental Income",
+      "category": "Electricity",
       "amount": 130.09,
       "desc": "El Paso Electric - May",
       "notes": "",
