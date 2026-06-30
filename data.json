@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-06-30T20:49:06.795Z",
+  "_savedAt": "2026-06-30T20:49:30.321Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1782852568245",
+      "date": "2026-06-30",
+      "category": "Escrow (Tax + Insurance)",
+      "amount": 282,
+      "desc": "Mortgage Escrow- June",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1782852546758",
       "date": "2026-06-30",
