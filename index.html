@@ -1161,13 +1161,15 @@ function entryRow(e, selectable = false) {
   const income = isIncome(e.category);
   const recurBadge = e.recur && e.recur !== 'none'
     ? `<span class="recur-badge">🔁 ${recurLabel(e.recur)}</span>` : '';
+  const autoGenBadge = e.autoGen
+    ? `<span class="recur-badge" style="background:var(--paper2);color:var(--ink3)">auto</span>` : '';
 
   if (selectable) {
     const isSelected = selectedIds.has(e.id);
     return `<div class="list-item selectable ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${e.id}', this)">
       <div class="select-check">${isSelected ? '✓' : ''}</div>
       <div class="list-main">
-        <div class="list-name">${e.desc || e.category}${recurBadge}</div>
+        <div class="list-name">${e.desc || e.category}${recurBadge}${autoGenBadge}</div>
         <div class="list-meta">${e.category} · ${e.date}</div>
       </div>
       <div class="list-amount ${income ? 'amount-pos' : 'amount-neg'}">${income?'+':'-'}${fmt(e.amount)}</div>
@@ -1183,7 +1185,7 @@ function entryRow(e, selectable = false) {
   return `<div class="list-item" onclick="openEntry('${e.id}')">
     ${photoEl}
     <div class="list-main">
-      <div class="list-name">${e.desc || e.category}${recurBadge}</div>
+      <div class="list-name">${e.desc || e.category}${recurBadge}${autoGenBadge}</div>
       <div class="list-meta">${e.category} · ${e.date}${e.photo ? ' · 📷' : ''}</div>
     </div>
     <div class="list-amount ${income ? 'amount-pos' : 'amount-neg'}">${income?'+':'-'}${fmt(e.amount)}</div>
@@ -2142,6 +2144,8 @@ async function githubLoad(verbose = false) {
     if (verbose) ghLog(`✅ Data loaded from GitHub!\nEntries: ${entryCount}\nLast saved: ${savedAt}\n\nYour dashboard has been updated.`);
     else showToast(`☁️ Loaded ${entryCount} entries from GitHub`);
 
+    // Generate any missing recurring entries after loading from GitHub
+    generateRecurringEntries();
     renderDashboard();
   } catch (err) {
     console.warn('GitHub load error:', err.message);
@@ -2693,6 +2697,100 @@ function exportData() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// RECURRING ENTRY AUTO-GENERATION
+// ══════════════════════════════════════════════════════════════════
+
+// Returns a YYYY-MM-DD date string for the same day-of-month in a future month
+function shiftMonths(dateStr, monthsToAdd) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const target = new Date(y, m - 1 + monthsToAdd, 1);
+  // Clamp to last day of month (e.g. Jan 31 + 1 month → Feb 28)
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  const clampedDay = Math.min(d, lastDay);
+  return `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(clampedDay).padStart(2,'0')}`;
+}
+
+function generateRecurringEntries() {
+  const todayStr  = now();           // YYYY-MM-DD
+  const todayYM   = todayStr.slice(0, 7); // YYYY-MM
+  let newEntries  = [];
+  let generated   = 0;
+
+  // Find all entries that have a recur flag
+  const recurringEntries = entries.filter(e => e.recur && e.recur !== 'none');
+
+  recurringEntries.forEach(template => {
+    // How many months between occurrences?
+    const step = template.recur === 'monthly'   ? 1
+               : template.recur === 'quarterly' ? 3
+               : template.recur === 'annually'  ? 12
+               : null;
+    if (!step) return;
+
+    // Find the most recent entry that matches this template
+    // (same description + category + recur flag, could be the original or a generated one)
+    const siblings = entries.filter(e =>
+      e.category === template.category &&
+      e.desc     === template.desc &&
+      e.amount   === template.amount &&
+      e.recur    === template.recur
+    );
+    const latestDate = siblings.reduce((latest, e) =>
+      e.date > latest ? e.date : latest, template.date
+    );
+    const latestYM = latestDate.slice(0, 7);
+
+    // Generate entries for each missing period up to this month
+    let cursor = shiftMonths(latestDate, step);
+    let safety = 0; // prevent infinite loops
+    while (cursor.slice(0, 7) <= todayYM && safety < 120) {
+      safety++;
+      const cursorYM = cursor.slice(0, 7);
+
+      // Check if an entry already exists for this period (same cat+desc+month)
+      const alreadyExists = entries.some(e =>
+        e.category === template.category &&
+        e.desc     === template.desc &&
+        e.amount   === template.amount &&
+        e.date.slice(0, 7) === cursorYM
+      ) || newEntries.some(e =>
+        e.category === template.category &&
+        e.desc     === template.desc &&
+        e.amount   === template.amount &&
+        e.date.slice(0, 7) === cursorYM
+      );
+
+      if (!alreadyExists) {
+        newEntries.push({
+          id:         `${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+          date:       cursor,
+          category:   template.category,
+          amount:     template.amount,
+          desc:       template.desc,
+          notes:      template.notes || '',
+          recur:      template.recur,
+          autoGen:    true // flag so user knows it was auto-created
+        });
+        generated++;
+      }
+
+      cursor = shiftMonths(cursor, step);
+    }
+  });
+
+  if (generated > 0) {
+    entries = [...entries, ...newEntries];
+    // Sort newest first
+    entries.sort((a, b) => b.date.localeCompare(a.date));
+    saveAll();
+    pushToGitHub();
+    showToast(`🔁 ${generated} recurring entr${generated === 1 ? 'y' : 'ies'} added`);
+  }
+
+  return generated;
+}
+
+// ══════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2701,9 +2799,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await DB.init();
   loadState();
+  // Restore rent savings toggle state from saved settings
+  rentSavingsOn = beSettings.includeRentSavings !== false;
 
   document.getElementById('bill-date').value = now();
   document.getElementById('topbar-address').textContent = settings.address || 'My Rental Property';
+
+  // Generate any missing recurring entries before rendering
+  generateRecurringEntries();
+
   renderDashboard();
 
   // Pull from GitHub on every load — this is what keeps devices in sync
