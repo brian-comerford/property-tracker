@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-09-18T03:33:00.842Z",
+  "_savedAt": "2026-09-18T03:33:57.952Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -78,7 +78,7 @@
       "amount": 282,
       "desc": "Mortgage Escrow- June",
       "notes": "",
-      "recur": "none"
+      "recur": "monthly"
     },
     {
       "id": "1782852546758",
