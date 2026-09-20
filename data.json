@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-09-18T03:34:28.526Z",
+  "_savedAt": "2026-09-20T23:18:18.734Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1789946298703",
+      "date": "2026-07-23",
+      "category": "Electricity",
+      "amount": 295.47,
+      "desc": "El Paso Electric - July",
+      "notes": "",
+      "recur": "none"
+    },
     {
       "id": "1789702468511-ognf0",
       "date": "2026-09-30",
