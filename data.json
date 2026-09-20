@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-09-20T23:23:40.931Z",
+  "_savedAt": "2026-09-20T23:24:03.985Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,42 +11,6 @@
     "loanStart": "2026-05"
   },
   "entries": [
-    {
-      "id": "1789946619932",
-      "date": "2026-07-27",
-      "category": "Internet",
-      "amount": 87.77,
-      "desc": "Wifi - July",
-      "notes": "",
-      "recur": "monthly"
-    },
-    {
-      "id": "1789946586822",
-      "date": "2026-06-25",
-      "category": "Internet",
-      "amount": 16.01,
-      "desc": "WiFi - June",
-      "notes": "",
-      "recur": "none"
-    },
-    {
-      "id": "1789946340105",
-      "date": "2026-08-21",
-      "category": "Electricity",
-      "amount": 303.68,
-      "desc": "El Paso Electric - August",
-      "notes": "",
-      "recur": "none"
-    },
-    {
-      "id": "1789946298703",
-      "date": "2026-07-23",
-      "category": "Electricity",
-      "amount": 295.47,
-      "desc": "El Paso Electric - July",
-      "notes": "",
-      "recur": "none"
-    },
     {
       "id": "1789702468511-ognf0",
       "date": "2026-09-30",
@@ -63,6 +27,16 @@
       "category": "Mortgage (P&I)",
       "amount": 577.17,
       "desc": "Mortgage P&I - June",
+      "notes": "",
+      "recur": "monthly",
+      "autoGen": true
+    },
+    {
+      "id": "1789946643971-frvx9",
+      "date": "2026-09-27",
+      "category": "Internet",
+      "amount": 87.77,
+      "desc": "Wifi - July",
       "notes": "",
       "recur": "monthly",
       "autoGen": true
@@ -108,6 +82,25 @@
       "autoGen": true
     },
     {
+      "id": "1789946643970-ezusz",
+      "date": "2026-08-27",
+      "category": "Internet",
+      "amount": 87.77,
+      "desc": "Wifi - July",
+      "notes": "",
+      "recur": "monthly",
+      "autoGen": true
+    },
+    {
+      "id": "1789946340105",
+      "date": "2026-08-21",
+      "category": "Electricity",
+      "amount": 303.68,
+      "desc": "El Paso Electric - August",
+      "notes": "",
+      "recur": "none"
+    },
+    {
       "id": "1789702380826-wirbo",
       "date": "2026-08-02",
       "category": "Rental Income",
@@ -148,6 +141,24 @@
       "autoGen": true
     },
     {
+      "id": "1789946619932",
+      "date": "2026-07-27",
+      "category": "Internet",
+      "amount": 87.77,
+      "desc": "Wifi - July",
+      "notes": "",
+      "recur": "monthly"
+    },
+    {
+      "id": "1789946298703",
+      "date": "2026-07-23",
+      "category": "Electricity",
+      "amount": 295.47,
+      "desc": "El Paso Electric - July",
+      "notes": "",
+      "recur": "none"
+    },
+    {
       "id": "1789702380826-vge1t",
       "date": "2026-07-02",
       "category": "Rental Income",
@@ -184,6 +195,15 @@
       "desc": "Mortgage P&I - June",
       "notes": "",
       "recur": "monthly"
+    },
+    {
+      "id": "1789946586822",
+      "date": "2026-06-25",
+      "category": "Internet",
+      "amount": 16.01,
+      "desc": "WiFi - June",
+      "notes": "",
+      "recur": "none"
     },
     {
       "id": "1782271337979",
