@@ -1,5 +1,5 @@
 {
-  "_savedAt": "2026-09-20T23:23:07.274Z",
+  "_savedAt": "2026-09-20T23:23:40.931Z",
   "settings": {
     "address": "",
     "purchasePrice": 132500,
@@ -11,6 +11,15 @@
     "loanStart": "2026-05"
   },
   "entries": [
+    {
+      "id": "1789946619932",
+      "date": "2026-07-27",
+      "category": "Internet",
+      "amount": 87.77,
+      "desc": "Wifi - July",
+      "notes": "",
+      "recur": "monthly"
+    },
     {
       "id": "1789946586822",
       "date": "2026-06-25",
